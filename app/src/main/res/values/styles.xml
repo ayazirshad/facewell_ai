@@ -1,0 +1,91 @@
+<resources>
+    <!-- Filled input: grey background, rounded, NO underline -->
+    <style name="ScinFilledInput" parent="@style/Widget.MaterialComponents.TextInputLayout.FilledBox.Dense">
+        <item name="boxBackgroundMode">filled</item>
+        <!-- Background color stays -->
+        <item name="boxBackgroundColor">@color/input_fill</item>
+
+        <!-- Remove underline/stroke -->
+        <item name="boxStrokeColor">@android:color/transparent</item>
+        <item name="boxStrokeWidth">0dp</item>
+        <item name="boxStrokeWidthFocused">0dp</item>
+
+        <!-- Rounded corners -->
+        <item name="boxCornerRadiusTopStart">20dp</item>
+        <item name="boxCornerRadiusTopEnd">20dp</item>
+        <item name="boxCornerRadiusBottomStart">20dp</item>
+        <item name="boxCornerRadiusBottomEnd">20dp</item>
+
+        <!-- Hint & icon tint -->
+        <item name="hintTextColor">@color/text_muted</item>
+        <item name="endIconTint">@color/text_muted</item>
+        <item name="startIconTint">@color/text_muted</item>
+    </style>
+
+    <!-- Text inside fields: black text, grey hint, no background -->
+    <style name="ScinEditText" parent="@style/Widget.MaterialComponents.TextInputEditText.FilledBox.Dense">
+        <item name="android:textColor">@color/black</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <style name="CircleImageOverlay">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item> <!-- perfect circle -->
+    </style>
+
+    <style name="BottomNavTextActive" parent="TextAppearance.MaterialComponents.Body2">
+        <item name="android:textSize">13sp</item>   <!-- slightly bigger -->
+        <item name="android:textStyle">bold</item>  <!-- optional -->
+    </style>
+
+    <style name="BottomNavTextInactive" parent="TextAppearance.MaterialComponents.Body2">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">normal</item>
+    </style>
+
+
+<!--    <style name="ShapeAppearance.Fyp.BottomNav.ActiveIndicator" parent="">-->
+<!--        <item name="cornerFamily">rounded</item>-->
+<!--        <item name="cornerSize">16dp</item>-->
+<!--    </style>-->
+
+
+
+    <!-- Rounded shape for the active indicator -->
+    <!-- Rounded pill shape -->
+    <style name="ActiveIndicatorShape">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item> <!-- tweak 12–18dp -->
+    </style>
+
+    <!-- Active indicator style (Material 1.12.0 expects android: on size/insets/color) -->
+    <style name="ActiveIndicatorStyle">
+        <item name="android:width">50dp</item>
+        <item name="android:height">30dp</item>
+
+        <!-- tighter icon↔label spacing -->
+        <item name="android:insetTop">6dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+
+        <item name="shapeAppearance">@style/ActiveIndicatorShape</item>
+        <item name="android:color">@color/nav_active_bg</item>
+    </style>
+
+    <!-- BottomNavigationView wrapper -->
+    <style name="BottomNavStyle" parent="Widget.Material3.BottomNavigationView">
+        <item name="itemActiveIndicatorStyle">@style/ActiveIndicatorStyle</item>
+
+        <!-- reduce gap between icon and label -->
+        <item name="itemPaddingTop">14dp</item>
+        <item name="itemPaddingBottom">10dp</item>
+
+        <item name="itemIconSize">24dp</item>
+    </style>
+
+
+
+
+</resources>

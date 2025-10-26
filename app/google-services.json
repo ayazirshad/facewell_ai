@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "5862436299",
+    "project_id": "facewellai",
+    "storage_bucket": "facewellai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:5862436299:android:6f565a6427108a4b881a4e",
+        "android_client_info": {
+          "package_name": "com.example.fyp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "5862436299-28ies87ed4dfnqd0755jrvnt2o91c2um.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.fyp",
+            "certificate_hash": "d205cfa4b7fd82a7ae342021fbba0946582421b0"
+          }
+        },
+        {
+          "client_id": "5862436299-01jpfreljufr927g45j5eqfv1efof1pv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9_Z5ICApO-3ODYlLquAUWezXMiHdQ-4g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "5862436299-01jpfreljufr927g45j5eqfv1efof1pv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

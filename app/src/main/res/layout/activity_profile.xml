@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/profileRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".ProfileActivity">
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/white"
+        android:fillViewport="true"
+        android:clipToPadding="false"
+        android:paddingBottom="90dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Header (same round bottom background as Home) -->
+            <FrameLayout
+                android:id="@+id/header"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:background="@drawable/bg_home_header_round"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="28dp">
+
+                <TextView
+                    android:id="@+id/tvHeaderTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|center_horizontal"
+                    android:text="Profile Setting"
+                    android:textColor="@color/on_teal"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <!-- Centered avatar + edit badge -->
+                <FrameLayout
+                    android:id="@+id/holderAvatar"
+                    android:layout_width="110dp"
+                    android:layout_height="110dp"
+                    android:layout_gravity="center">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardAvatar"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        app:cardCornerRadius="55dp"
+                        app:strokeColor="@color/white"
+                        app:strokeWidth="2dp"
+                        app:cardBackgroundColor="@color/input_fill">
+
+                        <ImageView
+                            android:id="@+id/ivAvatar"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:src="@drawable/ic_profile"
+                            android:scaleType="centerCrop"
+                            android:contentDescription="Avatar"/>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/badgeEdit"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_gravity="bottom|end"
+                        android:layout_margin="6dp"
+                        app:cardCornerRadius="14dp"
+                        app:cardBackgroundColor="@color/white"
+                        app:strokeWidth="1dp"
+                        app:strokeColor="@color/input_border">
+
+                        <ImageView
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:padding="6dp"
+                            android:src="@drawable/ic_edit"
+                            app:tint="@color/text_muted"/>
+                    </com.google.android.material.card.MaterialCardView>
+                </FrameLayout>
+            </FrameLayout>
+
+            <!-- Details box (light gray, no border) -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardDetails"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp"
+                app:cardBackgroundColor="@color/input_fill"
+                app:useCompatPadding="false">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- First Name -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="First name"
+                        android:textColor="@color/text_muted"/>
+                    <TextView
+                        android:id="@+id/tvFirst"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/black"
+                        android:textSize="16sp"
+                        tools:text="Ayaz"/>
+                    <View android:layout_width="match_parent" android:layout_height="12dp"/>
+
+                    <!-- Last Name -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Last name"
+                        android:textColor="@color/text_muted"/>
+                    <TextView
+                        android:id="@+id/tvLast"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/black"
+                        android:textSize="16sp"
+                        tools:text="Khan"/>
+                    <View android:layout_width="match_parent" android:layout_height="12dp"/>
+
+                    <!-- DOB -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Date of birth"
+                        android:textColor="@color/text_muted"/>
+                    <TextView
+                        android:id="@+id/tvDob"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/black"
+                        android:textSize="16sp"
+                        tools:text="1998-07-14"/>
+                    <View android:layout_width="match_parent" android:layout_height="12dp"/>
+
+                    <!-- Gender -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Gender"
+                        android:textColor="@color/text_muted"/>
+                    <TextView
+                        android:id="@+id/tvGender"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/black"
+                        android:textSize="16sp"
+                        tools:text="Male"/>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Options -->
+            <LinearLayout
+                android:id="@+id/listOptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginBottom="24dp">
+
+                <!-- Logout row (light gray, no border) -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/rowLogout"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardBackgroundColor="@color/input_fill"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center_vertical"
+                        android:paddingStart="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Logout"
+                            android:textColor="@color/red"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- Bottom bar (same config you use on Home) -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNav"
+        android:layout_width="match_parent"
+        android:layout_height="68dp"
+        android:layout_gravity="bottom"
+        android:background="@android:color/white"
+        android:elevation="8dp"
+        app:menu="@menu/menu_bottom_nav"
+        app:labelVisibilityMode="labeled"
+        app:itemIconTint="@color/selector_nav_color"
+        app:itemTextColor="@color/selector_nav_color"
+        app:itemTextAppearanceActive="@style/BottomNavTextActive"
+        app:itemTextAppearanceInactive="@style/BottomNavTextInactive"
+        app:itemBackground="@android:color/white" />
+
+    <!-- Center Scan FAB -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabScan"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="14dp"
+        android:padding="30dp"
+        android:scaleType="centerInside"
+        app:fabCustomSize="60dp"
+        app:backgroundTint="@color/teal_bg"
+        app:borderWidth="0dp"
+        app:maxImageSize="30dp"
+        app:srcCompat="@drawable/ic_camera"
+        app:tint="@color/white"
+        app:useCompatPadding="false" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

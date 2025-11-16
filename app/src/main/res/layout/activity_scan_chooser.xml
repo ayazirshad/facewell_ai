@@ -1,10 +1,97 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".ScanChooserActivity">
+    android:layout_height="wrap_content"
+    android:background="@color/white"
+    android:paddingTop="12dp"
+    app:cardCornerRadius="16dp"
+    app:cardBackgroundColor="@color/white">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:background="@color/white">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:background="@color/white">
+
+            <!-- CAMERA BUTTON -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/btnCamera"
+                android:layout_width="0dp"
+                android:layout_height="96dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
+                app:cardCornerRadius="14dp"
+                app:cardBackgroundColor="@color/teal_light"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/input_border"
+                android:foreground="?attr/selectableItemBackground">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:src="@drawable/ic_camera"
+                        app:tint="@color/teal_bg"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Camera"
+                        android:textStyle="bold"
+                        android:textColor="@color/black"
+                        android:layout_marginTop="8dp"/>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- PHOTOS BUTTON -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/btnPhotos"
+                android:layout_width="0dp"
+                android:layout_height="96dp"
+                android:layout_weight="1"
+                app:cardCornerRadius="14dp"
+                app:cardBackgroundColor="@color/teal_light"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/input_border"
+                android:foreground="?attr/selectableItemBackground">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:src="@drawable/ic_gallery"
+                        app:tint="@color/teal_bg"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Photos"
+                        android:textStyle="bold"
+                        android:textColor="@color/black"
+                        android:layout_marginTop="8dp"/>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

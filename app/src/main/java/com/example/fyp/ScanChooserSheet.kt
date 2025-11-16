@@ -1,14 +1,10 @@
-package com.example.fyp.camera
+package com.example.fyp
 
 import android.app.Activity
-import android.content.Intent
-import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.example.fyp.R
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
 class ScanChooserSheet : BottomSheetDialogFragment() {

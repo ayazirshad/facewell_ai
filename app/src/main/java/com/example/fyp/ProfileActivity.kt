@@ -72,7 +72,7 @@ class ProfileActivity : AppCompatActivity() {
             }
         }
         fabScan.setOnClickListener {
-            startActivity(Intent(this, ScanChooserActivity::class.java))
+            startActivity(Intent(this, ScanChooserSheet::class.java))
         }
 
         findViewById<android.view.View>(R.id.badgeEdit).setOnClickListener {

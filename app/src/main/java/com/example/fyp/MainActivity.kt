@@ -2,15 +2,18 @@ package com.example.fyp
 
 import android.content.Intent
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.View
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.viewpager2.widget.ViewPager2
+import com.example.fyp.camera.CameraCaptureActivity
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
 
     private lateinit var viewPager: ViewPager2
     private lateinit var bottomNav: BottomNavigationView
@@ -27,6 +30,18 @@ class MainActivity : AppCompatActivity() {
         R.id.nav_profile to MainPagerAdapter.Page.PROFILE
     )
     private val pageToId = idToPage.entries.associate { (id, page) -> page to id }
+
+    // ===== Gallery picker (returns a Uri) =====
+    private val pickFromGallery = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val i = Intent(this, ConfirmPhotoActivity::class.java)
+            i.putExtra(ConfirmPhotoActivity.EXTRA_IMAGE_URI, uri.toString())
+            startActivity(i)
+        }
+        // If uri is null, user canceled – do nothing.
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,11 +69,7 @@ class MainActivity : AppCompatActivity() {
         bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_scan_placeholder -> {
-                    if (overlayVisible) {
-                        closeOverlayThen { fabScan.performClick() }
-                    } else {
-                        fabScan.performClick()
-                    }
+                    fabScan.performClick()
                     false
                 }
                 else -> {
@@ -78,10 +89,8 @@ class MainActivity : AppCompatActivity() {
         // Default tab
         bottomNav.selectedItemId = R.id.nav_home
 
-        // FAB → your scan flow (menu is part of MainActivity; external Activity will cover it)
-        fabScan.setOnClickListener {
-            startActivity(Intent(this, ScanChooserActivity::class.java))
-        }
+        // FAB → open the chooser sheet
+        fabScan.setOnClickListener { ScanChooserSheet.show(this) }
 
         overlayContainer.visibility = View.GONE
     }
@@ -102,7 +111,6 @@ class MainActivity : AppCompatActivity() {
         overlayListener = object : FragmentManager.OnBackStackChangedListener {
             override fun onBackStackChanged() {
                 if (supportFragmentManager.backStackEntryCount == 0) {
-                    // Overlay fully closed
                     supportFragmentManager.removeOnBackStackChangedListener(this)
                     overlayVisible = false
                     overlayContainer.visibility = View.GONE
@@ -127,5 +135,16 @@ class MainActivity : AppCompatActivity() {
         }
         supportFragmentManager.addOnBackStackChangedListener(listener)
         supportFragmentManager.popBackStack()
+    }
+
+    // ===== ScanChooserSheet.Callbacks =====
+
+    override fun onPickCamera() {
+        startActivity(Intent(this, CameraCaptureActivity::class.java))
+    }
+
+    override fun onPickGallery() {
+        // Use the system picker; result handled in pickFromGallery above
+        pickFromGallery.launch("image/*")
     }
 }

@@ -61,4 +61,22 @@ dependencies {
 
     // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:21.2.0")
+
+
+    // CameraX
+    val camerax = "1.3.4"
+    implementation("androidx.camera:camera-core:$camerax")
+    implementation("androidx.camera:camera-camera2:$camerax")
+    implementation("androidx.camera:camera-lifecycle:$camerax")
+    implementation("androidx.camera:camera-view:$camerax")
+
+    // ML Kit Face Detection
+    implementation("com.google.mlkit:face-detection:16.1.7")
+
+    // TensorFlow Lite
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+
+    // Image loading (optional for preview)
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+//    kapt("com.github.bumptech.glide:compiler:4.16.0")
 }

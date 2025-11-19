@@ -1,0 +1,129 @@
+{
+  "eye": {
+    "darkcircles": {
+      "title": "Dark circles",
+      "summary": "Dark circles are often linked to fatigue, dehydration, and screen strain. These organic tips can help support healthier under-eye skin.",
+      "tips": [
+        "Apply chilled cucumber slices on closed eyes for 10 minutes.",
+        "Use cold green tea bags or pads under the eyes for 10 minutes to reduce puffiness.",
+        "Sleep at least 7–8 hours at night and keep a regular sleep schedule.",
+        "Reduce late-night screen time and follow the 20-20-20 rule for eye breaks.",
+        "Drink at least 6–8 glasses of water daily to stay hydrated."
+      ],
+      "products": [
+        {
+          "id": "prod_cucumber_gel",
+          "name": "Cucumber Gel (organic)",
+          "short": "Cooling cucumber gel for under-eye area.",
+          "localImage": "ic_prod_cucumber_gel"
+        },
+        {
+          "id": "prod_green_tea_pads",
+          "name": "Green Tea Eye Pads",
+          "short": "Soft under-eye pads soaked with green tea.",
+          "localImage": "ic_prod_green_tea_pads"
+        }
+      ]
+    },
+
+    "blepharitis": {
+      "title": "Blepharitis",
+      "summary": "Blepharitis is eyelid inflammation. Gentle hygiene and warm compresses can help relieve discomfort.",
+      "tips": [
+        "Use a warm, clean compress over closed eyes for about 10 minutes.",
+        "Gently clean the eyelid margins with a soft cloth and mild, diluted cleanser.",
+        "Avoid using eye makeup until the eyelids feel more comfortable.",
+        "Keep hands and towels clean to avoid further irritation around the eyes."
+      ],
+      "products": [
+        {
+          "id": "prod_warm_compress",
+          "name": "Warm Eye Compress (cotton)",
+          "short": "Reusable warm eye compress made of soft cotton.",
+          "localImage": "ic_prod_warm_compress"
+        },
+        {
+          "id": "prod_lid_cleanser",
+          "name": "Organic Eyelid Cleaning Pads",
+          "short": "Mild, fragrance-free eyelid cleaning pads for daily hygiene.",
+          "localImage": "ic_prod_lid_cleanser"
+        }
+      ]
+    },
+
+    "conjunctivitis": {
+      "title": "Eye irritation (conjunctivitis-like signs)",
+      "summary": "For mild irritation, gentle cooling and clean surroundings can support comfort. Always seek medical advice if redness or pain increases.",
+      "tips": [
+        "Use a clean, cold compress over closed eyes for short periods.",
+        "Wash hands frequently and avoid rubbing or touching the eyes.",
+        "Change pillowcases and face towels regularly to keep them clean.",
+        "Avoid sharing towels, makeup, or eye products with others."
+      ],
+      "products": [
+        {
+          "id": "prod_cold_compress",
+          "name": "Cold Compress Pack",
+          "short": "Soft cold pack that can be placed over closed eyes.",
+          "localImage": "ic_prod_cold_compress"
+        },
+        {
+          "id": "prod_pillowcase",
+          "name": "Hypoallergenic Pillowcase",
+          "short": "Clean, hypoallergenic pillowcase to support eye comfort during sleep.",
+          "localImage": "ic_prod_pillowcase"
+        }
+      ]
+    },
+
+    "cataracts": {
+      "title": "Possible cataract signs",
+      "summary": "Lifestyle changes and eye protection can support overall eye health. For cataracts, regular check-ups with an eye specialist are very important.",
+      "tips": [
+        "Wear UV-protective sunglasses when going outdoors in bright sunlight.",
+        "Include leafy green vegetables and carrots in your meals for natural antioxidants.",
+        "Avoid smoking and second-hand smoke as much as possible.",
+        "Schedule regular eye check-ups with a qualified eye specialist for proper guidance."
+      ],
+      "products": [
+        {
+          "id": "prod_uv_glasses",
+          "name": "UV Protective Sunglasses",
+          "short": "Sunglasses designed to block UV light and protect your eyes.",
+          "localImage": "ic_prod_uv_glasses"
+        },
+        {
+          "id": "prod_leafy_greens",
+          "name": "Leafy Greens (spinach mix icon)",
+          "short": "Visual reminder to include spinach and leafy greens in your diet.",
+          "localImage": "ic_prod_leafy_greens"
+        }
+      ]
+    },
+
+    "normal": {
+      "title": "Healthy eyes (normal)",
+      "summary": "Your eyes appear normal in this scan. These simple daily habits can help you maintain good eye health.",
+      "tips": [
+        "Follow the 20-20-20 rule: every 20 minutes, look 20 feet away for 20 seconds.",
+        "Sleep 7–8 hours to give your eyes enough rest.",
+        "Keep screens at a comfortable distance and avoid very bright or very dim lighting.",
+        "Stay hydrated during the day to support overall eye comfort."
+      ],
+      "products": [
+        {
+          "id": "prod_eye_mask",
+          "name": "Cooling Sleep Eye Mask",
+          "short": "Soft eye mask to reduce light and help better sleep.",
+          "localImage": "ic_prod_eye_mask"
+        },
+        {
+          "id": "prod_water_bottle",
+          "name": "Reusable Water Bottle",
+          "short": "Keeps you reminded to drink enough water daily.",
+          "localImage": "ic_prod_water_bottle"
+        }
+      ]
+    }
+  }
+}

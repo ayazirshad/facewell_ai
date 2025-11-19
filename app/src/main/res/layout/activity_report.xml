@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/reportRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/white">
+
+    <!-- Header -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@android:color/white"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="36dp"
+            android:layout_height="match_parent"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/back_arrow"
+            app:tint="@color/black" />
+
+        <TextView
+            android:id="@+id/tvReportTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="Eye Report"
+            android:textStyle="bold"
+            android:textColor="@color/teal_bg"
+            android:textSize="18sp"/>
+    </FrameLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Large preview -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="360dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                android:layout_marginBottom="12dp">
+
+                <ImageView
+                    android:id="@+id/ivPreview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"/>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Summary -->
+            <TextView
+                android:id="@+id/tvSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Summary"
+                android:textSize="16sp"
+                android:textColor="@color/black"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/tvSummaryText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_muted"
+                android:layout_marginTop="6dp"/>
+
+            <View android:layout_width="match_parent" android:layout_height="12dp"/>
+
+            <!-- EYE CONTAINER (show only for type="eye")  -->
+            <LinearLayout
+                android:id="@+id/container_eye"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Findings row -->
+                <LinearLayout
+                    android:id="@+id/rowFindings"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:weightSum="2">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardLeft"
+                        android:layout_width="0dp"
+                        android:layout_height="120dp"
+                        android:layout_weight="1"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="1dp"
+                        android:layout_marginEnd="8dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical">
+
+                            <ImageView
+                                android:id="@+id/ivLeftCrop"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:scaleType="centerCrop"/>
+
+                            <TextView
+                                android:id="@+id/tvLeftLabel"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:padding="6dp"
+                                android:textSize="14sp"
+                                android:textColor="@color/text_muted"/>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardRight"
+                        android:layout_width="0dp"
+                        android:layout_height="120dp"
+                        android:layout_weight="1"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="1dp"
+                        android:layout_marginStart="8dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical">
+
+                            <ImageView
+                                android:id="@+id/ivRightCrop"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:scaleType="centerCrop"/>
+
+                            <TextView
+                                android:id="@+id/tvRightLabel"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:padding="6dp"
+                                android:textSize="14sp"
+                                android:textColor="@color/text_muted"/>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="16dp"/>
+
+                <!-- Accuracy Level -->
+                <TextView
+                    android:id="@+id/tvAccuracyLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Accuracy Level: 82%"
+                    android:textStyle="bold"
+                    android:textColor="@color/black"/>
+
+                <View android:layout_width="match_parent" android:layout_height="12dp"/>
+
+                <!-- RECOMMENDATIONS CARD (lighter bg, teal title) -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardRecommendations"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    app:cardCornerRadius="10dp"
+                    app:cardElevation="2dp"
+                    app:cardBackgroundColor="@color/input_fill">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <TextView
+                            android:id="@+id/tvRecTitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Recommended organic care"
+                            android:textStyle="bold"
+                            android:textColor="@color/teal_bg"/>
+
+                        <TextView
+                            android:id="@+id/tvRecSummary"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text_muted"
+                            android:layout_marginTop="6dp"/>
+
+                        <LinearLayout
+                            android:id="@+id/llTips"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:layout_marginTop="8dp"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Products title -->
+                <TextView
+                    android:id="@+id/tvProductsTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Organic products you can try"
+                    android:textStyle="bold"
+                    android:layout_marginTop="12dp"
+                    android:textColor="@color/black"/>
+
+                <!-- Horizontal products list -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvProducts"
+                    android:layout_width="match_parent"
+                    android:layout_height="170dp"
+                    android:layout_marginTop="8dp"
+                    android:scrollbars="horizontal"/>
+
+                <View android:layout_width="match_parent" android:layout_height="12dp"/>
+
+                <!-- Action buttons row (two side-by-side) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSaveReport"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="48dp"
+                        android:text="Save Report"
+                        android:textColor="@android:color/white"
+                        app:backgroundTint="@color/teal_bg"
+                        app:cornerRadius="12dp"/>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnVisitClinic"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="8dp"
+                        android:text="Visit Clinic"
+                        android:textColor="@android:color/white"
+                        app:backgroundTint="@color/teal_bg"
+                        app:cornerRadius="12dp"/>
+                </LinearLayout>
+
+                <!-- Full-width outlined Go Home button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnGoHome"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="Go Home"
+                    android:textColor="@color/teal_bg"
+                    android:backgroundTint="@android:color/white"
+                    app:cornerRadius="12dp"
+                    app:strokeColor="@color/teal_bg"
+                    app:strokeWidth="2dp"
+                    android:layout_marginBottom="16dp"/>
+
+                <!-- Disclaimer -->
+                <TextView
+                    android:id="@+id/tvDisclaimer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Disclaimer: These are organic suggestions, not medical advice. If symptoms worsen, consult a doctor."
+                    android:textSize="12sp"
+                    android:textColor="@color/text_muted"/>
+            </LinearLayout>
+
+            <!-- Placeholder for other types -->
+            <TextView
+                android:id="@+id/tvPlaceholder"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Working on it"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_muted"
+                android:gravity="center"
+                android:visibility="gone"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="24dp"/>
+
+        </LinearLayout>
+
+    </ScrollView>
+
+</LinearLayout>

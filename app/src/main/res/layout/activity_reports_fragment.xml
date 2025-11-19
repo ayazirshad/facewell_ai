@@ -1,8 +1,118 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/reportsRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ReportsFragment"/>
+    android:background="@color/white">
+
+    <!-- Top filter row -->
+    <LinearLayout
+        android:id="@+id/filtersRow"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:gravity="center_vertical"
+        android:background="@color/white">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnEye"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="Eye"
+            android:textAllCaps="false"
+            app:cornerRadius="20dp"
+            app:strokeWidth="0dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSkin"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:text="Skin"
+            android:textAllCaps="false"
+            app:cornerRadius="20dp"
+            app:strokeWidth="0dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMood"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:text="Mood"
+            android:textAllCaps="false"
+            app:cornerRadius="20dp"
+            app:strokeWidth="0dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGeneral"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:text="All"
+            android:textAllCaps="false"
+            app:cornerRadius="20dp"
+            app:strokeWidth="0dp"/>
+    </LinearLayout>
+
+    <!-- Content -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="72dp">
+
+        <!-- placeholder when empty -->
+        <LinearLayout
+            android:id="@+id/emptyPlaceholder"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="96dp"
+                android:layout_height="96dp"
+                android:src="@drawable/ic_report_placeholder"
+                app:tint="@color/text_muted"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No reports yet"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_muted"
+                android:layout_marginTop="12dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Take a scan to generate your first report."
+                android:textSize="13sp"
+                android:textColor="@color/text_muted"
+                android:layout_marginTop="6dp"/>
+        </LinearLayout>
+
+        <!-- reports list -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvReports"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:padding="12dp"
+            android:visibility="gone"/>
+    </FrameLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

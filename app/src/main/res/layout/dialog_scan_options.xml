@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/dialogRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="@drawable/bg_logout_dialog_solid">
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Choose scan type"
+        android:textStyle="bold"
+        android:textSize="18sp"
+        android:gravity="center"
+        android:textColor="@color/black"/>
+
+    <View android:layout_width="match_parent" android:layout_height="12dp"/>
+
+    <!-- Buttons row container; each button is a full-width card-like button -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btnScanEyes"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginVertical="6dp"
+            app:cardCornerRadius="12dp"
+            app:cardBackgroundColor="@color/white"
+            app:strokeColor="@color/input_border"
+            app:strokeWidth="1dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:text="Scan Eyes"
+                android:textStyle="bold"
+                android:textColor="@color/black"/>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btnScanSkin"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginVertical="6dp"
+            app:cardCornerRadius="12dp"
+            app:cardBackgroundColor="@color/white"
+            app:strokeColor="@color/input_border"
+            app:strokeWidth="1dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:text="Scan Skin"
+                android:textStyle="bold"
+                android:textColor="@color/black"/>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btnScanMood"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginVertical="6dp"
+            app:cardCornerRadius="12dp"
+            app:cardBackgroundColor="@color/white"
+            app:strokeColor="@color/input_border"
+            app:strokeWidth="1dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:text="Scan Mood"
+                android:textStyle="bold"
+                android:textColor="@color/black"/>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btnScanFull"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginVertical="6dp"
+            app:cardCornerRadius="12dp"
+            app:cardBackgroundColor="@color/white"
+            app:strokeColor="@color/input_border"
+            app:strokeWidth="1dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:text="Scan Full Face"
+                android:textStyle="bold"
+                android:textColor="@color/black"/>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="12dp"/>
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/btnCancel"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        app:cardCornerRadius="12dp"
+        app:cardBackgroundColor="@color/input_fill">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="Cancel"
+            android:textStyle="bold"
+            android:textColor="@color/text_muted"/>
+    </com.google.android.material.card.MaterialCardView>
+
+</LinearLayout>

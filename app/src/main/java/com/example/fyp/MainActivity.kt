@@ -2,8 +2,6 @@ package com.example.fyp
 
 import android.content.Intent
 import android.os.Bundle
-import android.provider.MediaStore
-import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
@@ -18,7 +16,7 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
     private lateinit var viewPager: ViewPager2
     private lateinit var bottomNav: BottomNavigationView
     private lateinit var fabScan: FloatingActionButton
-    private lateinit var overlayContainer: View
+    private lateinit var overlayContainer: android.view.View
 
     private var overlayVisible = false
     private var overlayListener: FragmentManager.OnBackStackChangedListener? = null
@@ -40,7 +38,6 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
             i.putExtra(ConfirmPhotoActivity.EXTRA_IMAGE_URI, uri.toString())
             startActivity(i)
         }
-        // If uri is null, user canceled – do nothing.
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,16 +86,44 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
         // Default tab
         bottomNav.selectedItemId = R.id.nav_home
 
+        // Handle incoming "open_tab" intent (so other activities can redirect here)
+        handleOpenTabIntent(intent)
+
         // FAB → open the chooser sheet
         fabScan.setOnClickListener { ScanChooserSheet.show(this) }
 
-        overlayContainer.visibility = View.GONE
+        overlayContainer.visibility = android.view.View.GONE
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        intent?.let { handleOpenTabIntent(it) }
+    }
+
+    private fun handleOpenTabIntent(intent: Intent) {
+        val open = intent.getStringExtra("open_tab") ?: return
+        when (open) {
+            "clinics" -> {
+                // select clinics tab
+                bottomNav.selectedItemId = R.id.nav_clinics
+                val page = idToPage[R.id.nav_clinics] ?: MainPagerAdapter.Page.CLINICS
+                val index = MainPagerAdapter.Page.values().indexOf(page)
+                viewPager.setCurrentItem(index, false)
+            }
+            "reports" -> {
+                bottomNav.selectedItemId = R.id.nav_reports
+                val page = idToPage[R.id.nav_reports] ?: MainPagerAdapter.Page.REPORTS
+                val index = MainPagerAdapter.Page.values().indexOf(page)
+                viewPager.setCurrentItem(index, false)
+            }
+            // add more options if needed
+        }
     }
 
     /** Called from ProfileFragment (or others) to open an overlay Fragment on top while keeping the bottom bar. */
     fun openOverlay(fragment: Fragment, tag: String) {
         overlayVisible = true
-        overlayContainer.visibility = View.VISIBLE
+        overlayContainer.visibility = android.view.View.VISIBLE
 
         supportFragmentManager.beginTransaction()
             .setReorderingAllowed(true)
@@ -106,14 +131,13 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
             .addToBackStack(tag)
             .commit()
 
-        // Replace any previous listener safely
         overlayListener?.let { supportFragmentManager.removeOnBackStackChangedListener(it) }
         overlayListener = object : FragmentManager.OnBackStackChangedListener {
             override fun onBackStackChanged() {
                 if (supportFragmentManager.backStackEntryCount == 0) {
                     supportFragmentManager.removeOnBackStackChangedListener(this)
                     overlayVisible = false
-                    overlayContainer.visibility = View.GONE
+                    overlayContainer.visibility = android.view.View.GONE
                     overlayListener = null
                 }
             }
@@ -128,7 +152,7 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
                 if (supportFragmentManager.backStackEntryCount == 0) {
                     supportFragmentManager.removeOnBackStackChangedListener(this)
                     overlayVisible = false
-                    overlayContainer.visibility = View.GONE
+                    overlayContainer.visibility = android.view.View.GONE
                     afterClosed()
                 }
             }
@@ -144,7 +168,6 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
     }
 
     override fun onPickGallery() {
-        // Use the system picker; result handled in pickFromGallery above
         pickFromGallery.launch("image/*")
     }
 }

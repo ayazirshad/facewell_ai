@@ -2,7 +2,6 @@ package com.example.fyp.camera
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -23,6 +22,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.exifinterface.media.ExifInterface
 import com.example.fyp.ConfirmPhotoActivity
 import com.example.fyp.R
 import java.io.File
@@ -100,7 +100,6 @@ class CameraCaptureActivity : AppCompatActivity() {
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
 
-            // ✅ Save file exactly as real world (no selfie mirror in output)
             imageCapture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                 .build()
@@ -141,52 +140,93 @@ class CameraCaptureActivity : AppCompatActivity() {
                     ).show()
                 }
 
-//                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-//                    // Use content:// URI so Confirm screen can read it
-//                    val uri = FileProvider.getUriForFile(
-//                        this@CameraCaptureActivity,
-//                        "${packageName}.fileprovider",
-//                        photo
-//                    )
-//
-//                    val i = Intent(this@CameraCaptureActivity, ConfirmPhotoActivity::class.java)
-//                        .putExtra(ConfirmPhotoActivity.EXTRA_IMAGE_URI, uri.toString())
-//                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-//
-//                    startActivity(i)
-//                    // finish() // uncomment if you don’t want returning to camera on back
-//                }
-
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    // File saved by CameraX at 'photo'
+                    // Now: read EXIF orientation, apply rotation to pixels, then (if front) mirror,
+                    // and overwrite file so Confirm screen sees final upright+mirrored bitmap.
+                    try {
+                        fixImageOrientationAndMirror(photo.absolutePath, lensFacing == CameraSelector.LENS_FACING_FRONT)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
                     val uri = FileProvider.getUriForFile(
                         this@CameraCaptureActivity,
                         "${packageName}.fileprovider",
                         photo
                     )
 
-                    // Optional: unflip selfie before sending
-                    if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
-                        try {
-                            val bmp = BitmapFactory.decodeFile(photo.absolutePath)
-                            val flipped = Matrix().apply { preScale(-1f, 1f) } // horizontal mirror
-                            val fixed = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, flipped, true)
-                            FileOutputStream(photo).use { out ->
-                                fixed.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                            }
-                            bmp.recycle(); fixed.recycle()
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }
-
                     val i = Intent(this@CameraCaptureActivity, ConfirmPhotoActivity::class.java)
                         .putExtra(ConfirmPhotoActivity.EXTRA_IMAGE_URI, uri.toString())
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     startActivity(i)
                 }
-
             }
         )
+    }
+
+    /**
+     * Read EXIF, rotate pixels accordingly, then mirror if requested, and overwrite file.
+     * This makes the saved JPEG's pixels match the preview orientation the user saw.
+     */
+    private fun fixImageOrientationAndMirror(path: String, mirrorFront: Boolean) {
+        // 1) read bitmap (ignore EXIF transform)
+        val bmp = BitmapFactory.decodeFile(path) ?: return
+
+        // 2) read exif orientation
+        val exif = ExifInterface(path)
+        val orientation = exif.getAttributeInt(
+            ExifInterface.TAG_ORIENTATION,
+            ExifInterface.ORIENTATION_NORMAL
+        )
+
+        val matrix = Matrix()
+
+        // apply rotation based on EXIF tag
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> { matrix.postRotate(90f); matrix.postScale(-1f, 1f) }
+            ExifInterface.ORIENTATION_TRANSVERSE -> { matrix.postRotate(270f); matrix.postScale(-1f, 1f) }
+            else -> { /* normal - no rotation */ }
+        }
+
+        // if front camera, preview was mirrored for user; mirror horizontally so Confirm matches preview
+        if (mirrorFront) {
+            // preScale so mirroring happens before rotation/after — preScale is fine
+            matrix.postScale(-1f, 1f)
+        }
+
+        val transformed = if (matrix.isIdentity) {
+            bmp
+        } else {
+            Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, matrix, true).also {
+                if (it != bmp) bmp.recycle()
+            }
+        }
+
+        // overwrite file with transformed bitmap (JPEG, good quality)
+        FileOutputStream(path).use { out ->
+            transformed.compress(Bitmap.CompressFormat.JPEG, 95, out)
+        }
+
+        // update EXIF to NORMAL after we've baked transform (so future readers don't re-rotate)
+        try {
+            val exif2 = ExifInterface(path)
+            exif2.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+            exif2.saveAttributes()
+        } catch (e: Exception) {
+            // ignore if cannot write EXIF
+            e.printStackTrace()
+        }
+
+        // cleanup
+        if (!transformed.isRecycled) {
+            transformed.recycle()
+        }
     }
 
     override fun onDestroy() {

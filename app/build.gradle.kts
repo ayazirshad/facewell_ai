@@ -28,7 +28,6 @@ android {
         }
     }
     compileOptions {
-        // You can stay on 1.8; upgrade to 17 later if you bump AGP
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
@@ -38,30 +37,41 @@ android {
 }
 
 dependencies {
-    // AndroidX / Material (from your version catalog)
+    // AndroidX / Material
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
+
+    // ===== REMOVED: LiteRT (was causing duplicate TFLite classes) =====
+    // implementation(libs.litert.support.api)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
-    // ==== Firebase (use BOM with platform(...) and explicit artifacts) ====
+    // Firebase
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.android.material:material:1.12.0")
 
-    // Choose the KTX artifacts you actually use:
     implementation("com.google.firebase:firebase-analytics-ktx")
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
 
+    // Retrofit
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    implementation("com.google.code.gson:gson:2.8.9")
+
+    // Location
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+
     // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:21.2.0")
-
 
     // CameraX
     val camerax = "1.3.4"
@@ -70,13 +80,12 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
 
-    // ML Kit Face Detection
+    // ML Kit
     implementation("com.google.mlkit:face-detection:16.1.7")
 
-    // TensorFlow Lite
+    // ===== TensorFlow Lite (KEEP this one) =====
     implementation("org.tensorflow:tensorflow-lite:2.14.0")
 
-    // Image loading (optional for preview)
+    // Glide
     implementation("com.github.bumptech.glide:glide:4.16.0")
-//    kapt("com.github.bumptech.glide:compiler:4.16.0")
 }

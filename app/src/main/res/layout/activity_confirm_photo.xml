@@ -13,7 +13,7 @@
         android:gravity="center"
         android:text="Front Face"
         android:textStyle="bold"
-        android:textColor="@color/scin_blue"
+        android:textColor="@color/teal_bg"
         android:textSize="18sp"
         android:background="@android:color/white"/>
 

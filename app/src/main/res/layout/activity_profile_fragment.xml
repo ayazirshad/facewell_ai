@@ -34,48 +34,60 @@
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
-            <FrameLayout
-                android:id="@+id/holderAvatar"
-                android:layout_width="110dp"
-                android:layout_height="110dp"
+            <!-- Avatar centered with Edit button below it -->
+            <LinearLayout
+                android:id="@+id/avatarContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
                 android:layout_gravity="center">
 
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardAvatar"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    app:cardCornerRadius="55dp"
-                    app:strokeColor="@color/white"
-                    app:strokeWidth="2dp"
-                    app:cardBackgroundColor="@color/input_fill">
+                <FrameLayout
+                    android:id="@+id/holderAvatar"
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    android:layout_marginTop="20dp"
+                    >
 
-                    <ImageView
-                        android:id="@+id/ivAvatar"
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardAvatar"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:src="@drawable/ic_profile"
-                        android:scaleType="centerCrop"/>
-                </com.google.android.material.card.MaterialCardView>
+                        app:cardCornerRadius="55dp"
+                        app:strokeColor="@color/white"
+                        app:strokeWidth="2dp"
+                        app:cardBackgroundColor="@color/input_fill">
 
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/badgeEdit"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
-                    android:layout_gravity="bottom|end"
-                    android:layout_margin="6dp"
-                    app:cardCornerRadius="14dp"
-                    app:cardBackgroundColor="@color/white"
-                    app:strokeWidth="1dp"
-                    app:strokeColor="@color/input_border">
+                        <ImageView
+                            android:id="@+id/ivAvatar"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:src="@drawable/ic_profile"
+                            android:scaleType="centerCrop"/>
+                    </com.google.android.material.card.MaterialCardView>
 
-                    <ImageView
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:padding="6dp"
-                        android:src="@drawable/ic_edit"
-                        app:tint="@color/text_muted"/>
-                </com.google.android.material.card.MaterialCardView>
-            </FrameLayout>
+                </FrameLayout>
+
+                <!-- Edit button below the picture -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnEditProfile"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginTop="10dp"
+                    android:text="Edit"
+                    android:textColor="@color/black"
+                    android:textStyle="bold"
+                    android:textAllCaps="false"
+                    android:paddingStart="15dp"
+                    android:paddingEnd="15dp"
+                    app:cornerRadius="18dp"
+                    app:backgroundTint="@color/white"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:elevation="0dp"/>
+
+            </LinearLayout>
         </FrameLayout>
 
         <!-- Details card -->

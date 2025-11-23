@@ -1,0 +1,106 @@
+{
+  "skin": {
+    "acne": {
+      "title": "Acne",
+      "summary": "Acne is common and often linked to clogged pores, oil production, and bacteria. These gentle, evidence-based tips can help manage mild acne.",
+      "tips": [
+        "Cleanse face twice daily with a gentle, non-comedogenic cleanser.",
+        "Avoid heavy or occlusive cosmetics; use oil-free products.",
+        "Do not pick or squeeze pimples; it increases infection and scarring risk.",
+        "Use topical products with salicylic acid or benzoyl peroxide (start low concentration).",
+        "Maintain a balanced diet, hydrate, and avoid excessive sugar/greasy snacks."
+      ],
+      "products": [
+        {
+          "id": "prod_salicylic_wash",
+          "name": "Salicylic Acid Face Wash",
+          "short": "Gentle salicylic wash to help unclog pores.",
+          "localImage": "ic_prod_salicylic_wash"
+        },
+        {
+          "id": "prod_benzoyl_gel",
+          "name": "Benzoyl Peroxide Gel (2.5%)",
+          "short": "Spot treatment to reduce acne-causing bacteria.",
+          "localImage": "ic_prod_benzoyl_gel"
+        }
+      ]
+    },
+
+    "eczema": {
+      "title": "Eczema (Atopic dermatitis)",
+      "summary": "Eczema causes red, itchy patches. Gentle skin care, moisturization, and avoiding triggers often help reduce flare-ups.",
+      "tips": [
+        "Use a fragrance-free, thick moisturizer immediately after bathing to seal moisture.",
+        "Take short, lukewarm showers and avoid hot water which dries skin.",
+        "Wear soft, breathable fabrics and avoid harsh detergents or fragrances.",
+        "Consider an over-the-counter hydrocortisone cream for mild flare-ups and consult a doctor for persistent cases.",
+        "Keep nails short and use gentle cleaning for affected areas to avoid rubbing."
+      ],
+      "products": [
+        {
+          "id": "prod_emollient",
+          "name": "Barrier Repair Moisturizer",
+          "short": "Fragrance-free emollient for dry, eczema-prone skin.",
+          "localImage": "ic_prod_emollient"
+        },
+        {
+          "id": "prod_hydrocortisone",
+          "name": "Hydrocortisone 1% Cream",
+          "short": "OTC short-course option for mild flare-ups (follow instructions).",
+          "localImage": "ic_prod_hydrocortisone"
+        }
+      ]
+    },
+
+    "rosacea": {
+      "title": "Rosacea-like signs",
+      "summary": "Rosacea causes facial redness and flushing. Gentle care and avoiding triggers can reduce symptoms; medical treatment may be necessary for moderate cases.",
+      "tips": [
+        "Avoid triggers such as hot drinks, spicy foods, alcohol, and strong sunlight.",
+        "Use gentle cleansers and broad-spectrum sunscreen daily (SPF 30+).",
+        "Avoid abrasive scrubs and products with alcohol or strong fragrances.",
+        "Consider seeing a dermatologist for topical or oral therapy if redness persists.",
+        "Keep a trigger diary to identify foods/activities causing flare-ups."
+      ],
+      "products": [
+        {
+          "id": "prod_gentle_cleanser",
+          "name": "Gentle Soothing Cleanser",
+          "short": "Non-foaming, non-irritating face wash for sensitive skin.",
+          "localImage": "ic_prod_gentle_cleanser"
+        },
+        {
+          "id": "prod_sunscreen",
+          "name": "Mineral Sunscreen SPF 50",
+          "short": "Mineral sunscreen (zinc/titanium) suitable for sensitive/rosacea skin.",
+          "localImage": "ic_prod_sunscreen"
+        }
+      ]
+    },
+
+    "normal": {
+      "title": "Normal skin (no major findings)",
+      "summary": "Your skin appears within normal range in this scan. Maintain healthy routines to preserve skin health.",
+      "tips": [
+        "Use a gentle cleanser and a lightweight moisturizer daily.",
+        "Apply broad-spectrum sunscreen every morning.",
+        "Stay hydrated and eat a balanced diet with fruits and vegetables.",
+        "Get regular sleep and manage stress to support skin health."
+      ],
+      "products": [
+        {
+          "id": "prod_light_moisturizer",
+          "name": "Light Daily Moisturizer",
+          "short": "Non-greasy moisturizer for daily maintenance.",
+          "localImage": "ic_prod_light_moisturizer"
+        },
+        {
+          "id": "prod_spf",
+          "name": "Daily SPF 30 Sunscreen",
+          "short": "Everyday sunscreen to protect against photo-damage.",
+          "localImage": "ic_prod_spf"
+        }
+      ]
+    }
+  }
+}

@@ -4,8 +4,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Patterns
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
@@ -23,7 +23,6 @@ import com.google.android.material.textfield.TextInputLayout
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.SetOptions
 
 class LoginActivity : AppCompatActivity() {
 
@@ -57,6 +56,22 @@ class LoginActivity : AppCompatActivity() {
         initGoogleSignIn()
         setupLiveValidation()
 
+        // Show signup-success toast if redirected from signup
+        if (intent.getBooleanExtra("signup_success", false)) {
+            Toast.makeText(this, "Account created — please login.", Toast.LENGTH_LONG).show()
+        }
+
+        // Prefill email if provided from signup
+        val prefill = intent.getStringExtra("signup_email")
+        if (!prefill.isNullOrEmpty()) {
+            etEmail.setText(prefill)
+            etEmail.setSelection(prefill.length)
+            // Autofocus password and show keyboard
+            etPassword.requestFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(etPassword, InputMethodManager.SHOW_IMPLICIT)
+        }
+
         // Email/password login
         btnLogin.setOnClickListener { onEmailPasswordLoginClick() }
 
@@ -69,14 +84,8 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        // If already logged in, route by stage
-        auth.currentUser?.let {
-            showLoading(true)
-            goNextByStage() // <- stage-based routing
-        }
-    }
+    // NOTE: intentionally not routing in onStart.
+    // SplashActivity handles auto-routing upon app start to avoid showing login momentarily.
 
     private fun bindViews() {
         tilEmail = findViewById(R.id.tilEmail)
@@ -107,8 +116,9 @@ class LoginActivity : AppCompatActivity() {
             return
         }
 
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            tilEmail.error = "Please enter a valid email"
+        // Use the stricter email validation used in SignupActivity
+        if (!isValidEmail(email)) {
+            tilEmail.error = "Please enter a valid email (e.g. name@example.com)"
             showLoading(false)
             return
         }
@@ -116,7 +126,7 @@ class LoginActivity : AppCompatActivity() {
         auth.signInWithEmailAndPassword(email, pass)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    // Stage-based routing
+                    // Stage-based routing after successful login
                     goNextByStage()
                 } else {
                     val msg = task.exception?.localizedMessage ?: "Login failed. Try again."
@@ -129,7 +139,6 @@ class LoginActivity : AppCompatActivity() {
     // --- Google login flow (legacy GSI) ---
     private fun initGoogleSignIn() {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            // provided by google-services.json
             .requestIdToken(getString(R.string.default_web_client_id))
             .requestEmail()
             .build()
@@ -159,7 +168,11 @@ class LoginActivity : AppCompatActivity() {
 
     private fun startGoogleLogin() {
         showLoading(true)
-        googleLauncher.launch(googleClient.signInIntent)
+        googleClient.signOut().addOnCompleteListener {
+            googleClient.revokeAccess().addOnCompleteListener {
+                googleLauncher.launch(googleClient.signInIntent)
+            }
+        }
     }
 
     private fun firebaseLoginWithGoogle(idToken: String) {
@@ -167,25 +180,42 @@ class LoginActivity : AppCompatActivity() {
         auth.signInWithCredential(credential)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    // Ensure user doc exists; if new, create with stage 0
                     val uid = auth.currentUser?.uid
-                    if (uid != null) {
-                        val base = mapOf(
-                            "email" to (auth.currentUser?.email ?: ""),
-                            "provider" to "google",
-                            "createdAt" to System.currentTimeMillis()
-                        )
-                        db.collection("users").document(uid)
-                            .set(base, SetOptions.merge())
+                    if (uid == null) {
+                        showLoading(false)
+                        Toast.makeText(this, "Login failed. Try again.", Toast.LENGTH_LONG).show()
+                        return@addOnCompleteListener
                     }
-                    // Route by stage
-                    goNextByStage()
+
+                    db.collection("users").document(uid)
+                        .get()
+                        .addOnSuccessListener { doc ->
+                            if (doc.exists()) {
+                                goNextByStage()
+                            } else {
+                                try { auth.signOut() } catch (e: Exception) {}
+                                googleClient.signOut().addOnCompleteListener {
+                                    googleClient.revokeAccess().addOnCompleteListener {
+                                        Toast.makeText(this, "User not found. Please sign up first.", Toast.LENGTH_LONG).show()
+                                        showLoading(false)
+                                    }
+                                }
+                            }
+                        }
+                        .addOnFailureListener {
+                            try { auth.signOut() } catch (e: Exception) {}
+                            googleClient.signOut().addOnCompleteListener {
+                                googleClient.revokeAccess().addOnCompleteListener {
+                                    Toast.makeText(this, "Login error. Try again.", Toast.LENGTH_LONG).show()
+                                    showLoading(false)
+                                }
+                            }
+                        }
                 } else {
                     val raw = task.exception?.localizedMessage ?: ""
-                    val message =
-                        if (raw.contains("CONFIGURATION_NOT_FOUND", ignoreCase = true)) {
-                            "Firebase config missing on this build. Add SHA-1 & SHA-256 in Firebase > Project settings > Android app, then download a new google-services.json and rebuild."
-                        } else "Google sign-in failed. ${raw.ifBlank { "Try again." }}"
+                    val message = if (raw.contains("CONFIGURATION_NOT_FOUND", ignoreCase = true)) {
+                        "Firebase config missing on this build. Add SHA-1 & SHA-256 in Firebase > Project settings > Android app, then download a new google-services.json and rebuild."
+                    } else "Google sign-in failed. ${raw.ifBlank { "Try again." }}"
                     Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                     showLoading(false)
                 }
@@ -224,14 +254,12 @@ class LoginActivity : AppCompatActivity() {
                 finish()
             }
             .addOnFailureListener {
-                // If read fails, be safe and send to CreateProfile
                 startActivity(Intent(this, CreateProfileActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
                 })
                 finish()
             }
     }
-
 
     // --- Helpers ---
     private fun setupLiveValidation() {
@@ -256,7 +284,11 @@ class LoginActivity : AppCompatActivity() {
         llSignUp.isEnabled = !loading
     }
 
-    // Small extension to reduce boilerplate
+    private fun isValidEmail(email: String): Boolean {
+        val regex = Regex("^[A-Za-z][A-Za-z0-9._%+-]*@(?=[^@]*[A-Za-z])(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,63}\$")
+        return regex.matches(email) && android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    }
+
     private fun TextInputEditText.afterTextChanged(after: (Editable?) -> Unit) {
         this.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}

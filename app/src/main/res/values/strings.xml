@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">FYP</string>
+    <string name="app_name">FaceWellAI</string>
+    <string name="openweather_api_key">0c163d199c09796e5c1ed4f520b7323d</string>
 </resources>

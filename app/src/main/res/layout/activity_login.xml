@@ -75,7 +75,7 @@
             android:layout_width="match_parent"
             android:layout_height="58dp"
             android:background="@drawable/input_field_bg"
-            android:hint="Username or email"
+            android:hint="Email"
             android:textColor="@color/black"
             android:textColorHint="@color/text_muted"
             android:inputType="textEmailAddress"
@@ -129,7 +129,7 @@
         android:textStyle="bold"
         android:textColor="@color/white"
         app:cornerRadius="20dp"
-        app:backgroundTint="@color/scin_blue"
+        app:backgroundTint="@color/teal_bg"
         app:layout_constraintTop_toBottomOf="@id/tilPassword"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
@@ -190,7 +190,7 @@
             android:text="Sign Up"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:textColor="@color/scin_blue" />
+            android:textColor="@color/teal_bg" />
     </LinearLayout>
 
     <!-- Fullscreen loading overlay (drawn last => on top) -->

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.InputFilter
+import android.text.Selection
 import android.text.TextWatcher
 import android.util.Patterns
 import android.view.View
@@ -51,6 +52,9 @@ class SignupActivity : AppCompatActivity() {
     // Google
     private lateinit var googleClient: GoogleSignInClient
     private lateinit var googleLauncher: ActivityResultLauncher<Intent>
+
+    // Flag to avoid recursive phone formatting
+    private var phoneFormatting = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -125,7 +129,14 @@ class SignupActivity : AppCompatActivity() {
 
     private fun startGoogleSignup() {
         showLoading(true)
-        googleLauncher.launch(googleClient.signInIntent)
+        // For safety, clear any cached Google session before showing chooser (ensures account selection)
+        googleClient.signOut().addOnCompleteListener {
+            // it's fine to revoke here too; revokeAccess ensures chooser next time
+            googleClient.revokeAccess().addOnCompleteListener {
+                // now launch chooser
+                googleLauncher.launch(googleClient.signInIntent)
+            }
+        }
     }
 
     private fun firebaseAuthWithGoogle(idToken: String) {
@@ -160,17 +171,36 @@ class SignupActivity : AppCompatActivity() {
                         Toast.LENGTH_SHORT
                     ).show()
 
-                    // Navigate to Login screen (as per your flow)
-                    startActivity(Intent(this, LoginActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-                    })
-                    finish()
+                    // Sign out and revoke Google access so chooser appears next time and user is NOT auto-logged-in
+                    try {
+                        auth.signOut()
+                        googleClient.signOut().addOnCompleteListener {
+                            googleClient.revokeAccess().addOnCompleteListener {
+                                // Navigate to Login screen (require manual login) and inform Login to show toast + prefill email
+                                startActivity(Intent(this, LoginActivity::class.java).apply {
+                                    putExtra("signup_success", true)
+                                    putExtra("signup_email", user?.email ?: "")
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                })
+                                finish()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // fallback navigation if signOut/revoke fail
+                        startActivity(Intent(this, LoginActivity::class.java).apply {
+                            putExtra("signup_success", true)
+                            putExtra("signup_email", user?.email ?: "")
+                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        })
+                        finish()
+                    }
                 } else {
                     val raw = task.exception?.localizedMessage ?: ""
                     val message =
                         if (raw.contains("CONFIGURATION_NOT_FOUND", ignoreCase = true)) {
                             "Firebase config missing on this build. Add SHA-1 & SHA-256 in Firebase > Project settings > Android app, then download a new google-services.json and rebuild."
                         } else "Google sign-in failed. ${raw.ifBlank { "Try again." }}"
+
                     Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                     showLoading(false)
                 }
@@ -178,7 +208,7 @@ class SignupActivity : AppCompatActivity() {
     }
     // --- End Google Sign-In ---
 
-    // --- Email/Password sign-up logic (existing) ---
+    // --- Email/Password sign-up logic (updated validations) ---
     private fun onEmailPasswordSignUpClick() {
         clearAllErrors()
         showLoading(true)
@@ -199,17 +229,24 @@ class SignupActivity : AppCompatActivity() {
             return
         }
 
-        // Email validation
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            tilEmail.error = "Please enter a valid email address"
+        // Email validation — stricter regex: local must start with a letter, domain must contain at least one letter, TLD >=2 letters
+        if (!isValidEmail(email)) {
+            tilEmail.error = "Enter a valid email (e.g. name@example.com)"
             showLoading(false)
             return
         }
 
-        // Phone validation: 11 digits, optional hyphen after 4th digit (e.g., 0321-2345754)
+        // Phone validation: must start with 0 and be 11 digits; optional hyphen after 4 digits allowed
         val phoneOk = phoneRaw.matches(Regex("^0\\d{3}-?\\d{7}\$"))
         if (!phoneOk) {
-            tilPhone.error = "Phone must be 11 digits (e.g., 0321-2345754)"
+            tilPhone.error = "Phone must start with 0 and be 11 digits (e.g., 0321-2345754 or 03212345754)"
+            showLoading(false)
+            return
+        }
+
+        // Password length check (minimum 8)
+        if (pass.length < 8) {
+            tilPass.error = "Password must be at least 8 characters"
             showLoading(false)
             return
         }
@@ -246,8 +283,17 @@ class SignupActivity : AppCompatActivity() {
 
                     Toast.makeText(this, "Account created successfully.", Toast.LENGTH_SHORT).show()
 
-                    // Navigate to Login and finish this screen
+                    // Sign out new user so they must login manually
+                    try {
+                        auth.signOut()
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+
+                    // Navigate to Login and finish this screen, show toast there and pass email to prefill
                     startActivity(Intent(this, LoginActivity::class.java).apply {
+                        putExtra("signup_success", true)
+                        putExtra("signup_email", email)
                         addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
                     })
                     finish()
@@ -270,6 +316,15 @@ class SignupActivity : AppCompatActivity() {
     }
     // --- End Email/Password sign-up ---
 
+    private fun isValidEmail(email: String): Boolean {
+        // stricter regex:
+        // - local part must start with a letter, then letters/digits and ._%+- allowed
+        // - domain part must be standard labels separated by dots and there must be at least one letter in domain (so numeric-only domains rejected)
+        // - TLD at least 2 letters
+        val regex = Regex("^[A-Za-z][A-Za-z0-9._%+-]*@(?=[^@]*[A-Za-z])(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,63}\$")
+        return regex.matches(email) && Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    }
+
     private fun setupInputConstraints() {
         // Up to 12 chars to allow optional hyphen: 0321-2345754
         etPhone.filters = arrayOf(InputFilter.LengthFilter(12))
@@ -282,18 +337,62 @@ class SignupActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) { tilEmail.error = null }
         })
 
+        // Phone: live formatting + clear error on change
         etPhone.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            private var previous = ""
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                previous = s?.toString() ?: ""
+            }
+
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) { tilPhone.error = null }
+
+            override fun afterTextChanged(s: Editable?) {
+                if (phoneFormatting) return
+                phoneFormatting = true
+                try {
+                    val raw = s?.toString() ?: ""
+                    // remove non-digit chars
+                    val digits = raw.filter { it.isDigit() }
+
+                    // build formatted: first 4 digits, optional '-', then remaining up to 7 digits
+                    val formatted = when {
+                        digits.length <= 4 -> digits
+                        digits.length <= 11 -> {
+                            val first = digits.substring(0, 4)
+                            val rest = digits.substring(4)
+                            "$first-$rest"
+                        }
+                        else -> {
+                            // more than expected digits — truncate to 11
+                            val first = digits.substring(0, 4)
+                            val rest = digits.substring(4, 11)
+                            "$first-$rest"
+                        }
+                    }
+
+                    if (formatted != raw) {
+                        etPhone.setText(formatted)
+
+                        // compute new cursor position and place at end of formatted text
+                        val newPos = formatted.length.coerceIn(0, formatted.length)
+                        Selection.setSelection(etPhone.text, newPos)
+                    }
+                } catch (e: Exception) {
+                    // ignore formatting errors
+                } finally {
+                    tilPhone.error = null
+                    phoneFormatting = false
+                }
+            }
         })
 
         etPass.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
+                // clear password error as soon as user types; keep confirm validation live
+                if (etPass.text?.length ?: 0 >= 8) tilPass.error = null
                 validateConfirmPassword(showError = false)
-                tilPass.error = null
             }
         })
 

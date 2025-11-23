@@ -20,8 +20,10 @@ class SelectGenderActivity : AppCompatActivity() {
     private lateinit var tvHello: TextView
     private lateinit var cardMale: MaterialCardView
     private lateinit var cardFemale: MaterialCardView
+    private lateinit var cardOther: MaterialCardView
     private lateinit var maleIcon: ImageView
     private lateinit var femaleIcon: ImageView
+    private lateinit var otherIcon: ImageView
     private lateinit var btnNext: MaterialButton
     private lateinit var overlay: View
     private lateinit var spinner: CircularProgressIndicator
@@ -29,7 +31,7 @@ class SelectGenderActivity : AppCompatActivity() {
     private val auth by lazy { FirebaseAuth.getInstance() }
     private val db by lazy { FirebaseFirestore.getInstance() }
 
-    private var gender: String? = null // "male" or "female"
+    private var gender: String? = null // "male" | "female" | "prefer_not_to_say"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,8 +40,10 @@ class SelectGenderActivity : AppCompatActivity() {
         tvHello = findViewById(R.id.tvHello)
         cardMale = findViewById(R.id.cardMale)
         cardFemale = findViewById(R.id.cardFemale)
-        maleIcon = cardMale.getChildAt(0) as ImageView
-        femaleIcon = cardFemale.getChildAt(0) as ImageView
+        cardOther = findViewById(R.id.cardOther)
+        maleIcon = findViewById(R.id.icMale)
+        femaleIcon = findViewById(R.id.icFemale)
+        otherIcon = findViewById(R.id.icOther)
         btnNext = findViewById(R.id.btnNextGender)
         overlay = findViewById(R.id.loadingOverlay)
         spinner = findViewById(R.id.progress)
@@ -62,28 +66,42 @@ class SelectGenderActivity : AppCompatActivity() {
             }
         }
 
+        // click handlers
         cardMale.setOnClickListener { pickGender("male") }
         cardFemale.setOnClickListener { pickGender("female") }
+        cardOther.setOnClickListener { pickGender("prefer_not_to_say") }
 
         btnNext.setOnClickListener { onNext() }
     }
 
     private fun pickGender(value: String) {
         gender = value
-        // reset
+        // reset all
         cardMale.strokeWidth = 0
         cardFemale.strokeWidth = 0
+        cardOther.strokeWidth = 0
+
         maleIcon.setColorFilter(getColor(R.color.text_muted))
         femaleIcon.setColorFilter(getColor(R.color.text_muted))
-        // select
-        if (value == "male") {
-            cardMale.strokeWidth = 4
-            cardMale.strokeColor = getColor(R.color.scin_blue)
-            maleIcon.setColorFilter(getColor(R.color.scin_blue))
-        } else {
-            cardFemale.strokeWidth = 4
-            cardFemale.strokeColor = getColor(R.color.red) // ensure you have @color/red
-            femaleIcon.setColorFilter(getColor(R.color.red))
+        otherIcon.setColorFilter(getColor(R.color.text_muted))
+
+        // select chosen
+        when (value) {
+            "male" -> {
+                cardMale.strokeWidth = 4
+                cardMale.strokeColor = getColor(R.color.teal_mid)
+                maleIcon.setColorFilter(getColor(R.color.teal_mid))
+            }
+            "female" -> {
+                cardFemale.strokeWidth = 4
+                cardFemale.strokeColor = getColor(R.color.red)
+                femaleIcon.setColorFilter(getColor(R.color.red))
+            }
+            "prefer_not_to_say" -> {
+                cardOther.strokeWidth = 4
+                cardOther.strokeColor = getColor(R.color.scin_blue)
+                otherIcon.setColorFilter(getColor(R.color.scin_blue))
+            }
         }
     }
 
@@ -113,7 +131,6 @@ class SelectGenderActivity : AppCompatActivity() {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 }
                 startActivity(intent)
-                // no need to manual finish(); flags cleared the task
             }
             .addOnFailureListener {
                 Toast.makeText(this, "Failed to save. Try again.", Toast.LENGTH_LONG).show()
@@ -126,5 +143,6 @@ class SelectGenderActivity : AppCompatActivity() {
         btnNext.isEnabled = !loading
         cardMale.isEnabled = !loading
         cardFemale.isEnabled = !loading
+        cardOther.isEnabled = !loading
     }
 }

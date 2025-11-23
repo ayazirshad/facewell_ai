@@ -6,6 +6,9 @@
         android:name="android.hardware.camera"
         android:required="false" /> <!-- Needed for Firebase/Auth/Firestore/Storage calls -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" /> <!-- Gallery on Android 13+ -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" /> <!-- Fallback for < 33 -->
     <uses-permission
@@ -26,7 +29,13 @@
         android:theme="@style/Theme.FYP"
         tools:targetApi="31">
         <activity
-            android:name=".ReportActivity"
+            android:name=".SkinReportActivity"
+            android:exported="false" />
+        <activity
+            android:name=".EditProfileActivity"
+            android:exported="false" />
+        <activity
+            android:name=".EyeReportActivity"
             android:exported="false" />
         <activity
             android:name=".camera.CameraCaptureActivity"
@@ -71,15 +80,6 @@
             android:exported="false" />
         <activity
             android:name=".ScanSkinActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ReportsActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ClinicsActivity"
             android:exported="false" />
         <activity
             android:name=".SelectGenderActivity"

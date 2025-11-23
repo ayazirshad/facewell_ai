@@ -5,7 +5,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="24dp"
-    app:cardCornerRadius="16dp">
+    app:cardCornerRadius="16dp"
+    android:background="@drawable/bg_logout_dialog_solid">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -19,6 +20,7 @@
             android:text="Discard scan?"
             android:textStyle="bold"
             android:textSize="18sp"
+            android:textColor="@android:color/black"
             android:gravity="center"
             android:layout_marginBottom="8dp"/>
 
@@ -27,6 +29,7 @@
             android:layout_height="wrap_content"
             android:text="If you go back now, you’ll lose the photo you’ve taken."
             android:gravity="center"
+            android:textColor="@android:color/black"
             android:layout_marginBottom="16dp"/>
 
         <com.google.android.material.button.MaterialButton
@@ -34,7 +37,7 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:text="Discard"
-            app:backgroundTint="@color/scin_blue"
+            app:backgroundTint="@color/red"
             android:textColor="@android:color/white"/>
 
         <com.google.android.material.button.MaterialButton
@@ -43,6 +46,7 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:layout_marginTop="8dp"
-            android:text="Cancel"/>
+            android:text="Cancel"
+            app:backgroundTint="@color/dialog_btn_grey"/>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

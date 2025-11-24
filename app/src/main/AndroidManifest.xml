@@ -29,6 +29,9 @@
         android:theme="@style/Theme.FYP"
         tools:targetApi="31">
         <activity
+            android:name=".MoodReportActivity"
+            android:exported="false" />
+        <activity
             android:name=".SkinReportActivity"
             android:exported="false" />
         <activity

@@ -4,14 +4,24 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.setPadding
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
@@ -21,9 +31,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import org.tensorflow.lite.Interpreter
-import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStream
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import kotlin.math.max
@@ -49,6 +57,8 @@ class EyeReportActivity : AppCompatActivity() {
     private lateinit var btnBack: ImageButton
     private lateinit var llTips: LinearLayout
     private lateinit var tvRecSummary: TextView
+    private lateinit var rvProducts: RecyclerView
+    private lateinit var tvProductsTitle: TextView
 
     private lateinit var interpreter: Interpreter
 
@@ -61,10 +71,16 @@ class EyeReportActivity : AppCompatActivity() {
     private var leftCropUriStr: String? = null
     private var rightCropUriStr: String? = null
 
+    // overlay spinner (created at runtime)
+    private var loadingOverlay: FrameLayout? = null
+    private var progressIndicator: CircularProgressIndicator? = null
+
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_eye_report)
 
+        // bind views
         ivPreview = findViewById(R.id.ivPreview)
         ivLeftCrop = findViewById(R.id.ivLeftCrop)
         ivRightCrop = findViewById(R.id.ivRightCrop)
@@ -78,22 +94,31 @@ class EyeReportActivity : AppCompatActivity() {
         btnBack = findViewById(R.id.btnBack)
         llTips = findViewById(R.id.llTips)
         tvRecSummary = findViewById(R.id.tvRecSummary)
+        rvProducts = findViewById(R.id.rvProducts)
+        tvProductsTitle = findViewById(R.id.tvProductsTitle)
 
         btnBack.setOnClickListener { finish() }
 
         val tvTitle = findViewById<TextView>(R.id.tvReportTitle)
         tvTitle.text = "Eye Report"
 
+        // create runtime overlay spinner (uses same look as your LoginActivity spinner)
+        createLoadingOverlay()
+
+        // load model
         try {
             interpreter = loadModel()
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Failed to load model", Toast.LENGTH_SHORT).show()
-            finish(); return
+            finish()
+            return
         }
 
+        // load recommendations
         RecommendationProvider.loadFromAssets(this, "eye_recommendations.json")
 
+        // load image
         val imageUriStr = intent.getStringExtra(EXTRA_IMAGE_URI) ?: intent.getStringExtra("extra_image_uri")
         if (imageUriStr.isNullOrEmpty()) { finish(); return }
         val imageUri = Uri.parse(imageUriStr)
@@ -103,30 +128,47 @@ class EyeReportActivity : AppCompatActivity() {
         }
         ivPreview.setImageBitmap(bmp)
 
+        // show loader then run detection + model in background
+        showLoading(true)
         Thread {
             try {
                 val (leftBmp, rightBmp) = detectAndCropEyes(bmp)
                 if (leftBmp == null || rightBmp == null) {
-                    runOnUiThread { Toast.makeText(this, "Eyes not clearly detected", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread {
+                        showLoading(false)
+                        Toast.makeText(this, "Eyes not clearly detected", Toast.LENGTH_SHORT).show()
+                    }
                     return@Thread
                 }
 
+                // run model and get label+confidence pairs
                 val (lPair, rPair, overall) = runEyeModel(leftBmp, rightBmp)
 
+                // save crops to temp cache for upload later
                 val leftUri = saveBitmapToCache(leftBmp, "left_eye_${System.currentTimeMillis()}.jpg")
                 val rightUri = saveBitmapToCache(rightBmp, "right_eye_${System.currentTimeMillis()}.jpg")
                 leftCropUriStr = leftUri?.toString(); rightCropUriStr = rightUri?.toString()
 
+                // update UI (labels, confidences, crops)
                 runOnUiThread {
                     ivLeftCrop.setImageBitmap(leftBmp)
                     ivRightCrop.setImageBitmap(rightBmp)
-                    tvLeftLabel.text = lPair.first
-                    tvRightLabel.text = rPair.first
-                    tvAccuracy.text = "Accuracy Level: ${(overall * 100).toInt()}%"
-                    tvSummaryText.text = "Left: ${lPair.first} • Right: ${rPair.first}"
 
-                    val topLabelKey = if (lPair.second >= rPair.second) lPair.first else rPair.first
-                    val rec = RecommendationProvider.getEyeRecommendation(topLabelKey.replace("\\s".toRegex(), "").lowercase(Locale.getDefault()))
+                    // Show per-eye label + accuracy
+                    val leftText = "${lPair.first} (${(lPair.second * 100).toInt()}%)"
+                    val rightText = "${rPair.first} (${(rPair.second * 100).toInt()}%)"
+                    tvLeftLabel.text = leftText
+                    tvRightLabel.text = rightText
+
+                    // overall accuracy (average)
+                    tvAccuracy.text = "Accuracy Level: ${(overall * 100).toInt()}%"
+
+                    // summary
+                    tvSummaryText.text = "Left: $leftText • Right: $rightText"
+
+                    // load recommendation for top finding; populate tips & products
+                    val topKey = if (lPair.second >= rPair.second) lPair.first else rPair.first
+                    val rec = RecommendationProvider.getEyeRecommendation(topKey.replace("\\s".toRegex(), "").lowercase(Locale.getDefault()))
                     if (rec != null) {
                         tvRecSummary.text = rec.summary
                         llTips.removeAllViews()
@@ -137,19 +179,40 @@ class EyeReportActivity : AppCompatActivity() {
                             tv.setTextSize(14f)
                             llTips.addView(tv)
                         }
+
+                        // PRODUCTS: show horizontally as grid(2)
+                        if (rec.products.isNotEmpty()) {
+                            tvProductsTitle.visibility = View.VISIBLE
+                            rvProducts.visibility = View.VISIBLE
+                            rvProducts.layoutManager = GridLayoutManager(this, 2, RecyclerView.VERTICAL, false)
+                            val adapter = ProductAdapter(this, rec.products) { product ->
+                                showProductDialog(product)
+                            }
+                            rvProducts.adapter = adapter
+                        } else {
+                            tvProductsTitle.visibility = View.GONE
+                            rvProducts.visibility = View.GONE
+                        }
                     } else {
                         tvRecSummary.text = "No recommendation available."
                         llTips.removeAllViews()
+                        tvProductsTitle.visibility = View.GONE
+                        rvProducts.visibility = View.GONE
                     }
-                }
 
+                    // hide loader now
+                    showLoading(false)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
-                runOnUiThread { Toast.makeText(this, "Eye analysis failed.", Toast.LENGTH_SHORT).show() }
+                runOnUiThread {
+                    showLoading(false)
+                    Toast.makeText(this, "Eye analysis failed.", Toast.LENGTH_SHORT).show()
+                }
             }
         }.start()
 
-        // Save report
+        // Save report (uploads preview + left + right images and writes Firestore doc)
         btnSave.setOnClickListener {
             val uid = auth.currentUser?.uid
             if (uid == null) {
@@ -189,7 +252,72 @@ class EyeReportActivity : AppCompatActivity() {
         }
     }
 
-    // detect & crop eyes
+    /**
+     * Create a runtime full-screen overlay with a dim background and a CircularProgressIndicator.
+     * IDs match your login spinner-like layout: overlay id -> "loadingOverlay", progress id -> "progress".
+     * This avoids changing XML files.
+     */
+    private fun createLoadingOverlay() {
+        // root container to attach overlay
+        val root = try {
+            findViewById<View>(R.id.reportRoot) as? FrameLayout
+        } catch (_: Exception) { null }
+
+        // fallback to decor view if not present
+        val parent = if (root != null) root else {
+            val decor = window.decorView.findViewById<FrameLayout>(android.R.id.content)
+            decor
+        }
+
+        // build overlay FrameLayout programmatically
+        val overlay = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            isClickable = true
+            isFocusable = true
+            elevation = 16f
+            visibility = View.GONE
+            id = View.generateViewId() // dynamic id; we keep reference
+        }
+
+        // dim background view
+        val dim = View(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            setBackgroundColor(0x80000000.toInt()) // #80000000
+        }
+        overlay.addView(dim)
+
+        // centered progress indicator
+        val progress = CircularProgressIndicator(this).apply {
+            val sizeDp = (48 * resources.displayMetrics.density).toInt()
+            layoutParams = FrameLayout.LayoutParams(sizeDp, sizeDp, Gravity.CENTER)
+            isIndeterminate = true
+            // no explicit color set here — uses default accent
+            id = View.generateViewId()
+        }
+        overlay.addView(progress)
+
+        // attach overlay to parent
+        parent.addView(overlay)
+
+        // keep refs
+        loadingOverlay = overlay
+        progressIndicator = progress
+    }
+
+    private fun showLoading(show: Boolean) {
+        runOnUiThread {
+            loadingOverlay?.visibility = if (show) View.VISIBLE else View.GONE
+            progressIndicator?.visibility = if (show) View.VISIBLE else View.GONE
+        }
+    }
+
+    // detect & crop eyes using ML Kit (blocking call via Tasks.await() inside thread)
     private fun detectAndCropEyes(bmp: Bitmap): Pair<Bitmap?, Bitmap?> {
         val img = InputImage.fromBitmap(bmp, 0)
         val opts = FaceDetectorOptions.Builder()
@@ -229,7 +357,7 @@ class EyeReportActivity : AppCompatActivity() {
         return Pair(leftBmp, rightBmp)
     }
 
-    // run eye model (same preprocessing as your original float model)
+    // run eye model — returns (label, confidence) for left & right and overall avg confidence
     private fun runEyeModel(left: Bitmap, right: Bitmap): Triple<Pair<String, Float>, Pair<String, Float>, Float> {
         fun prepareInput(b: Bitmap): Array<Array<Array<FloatArray>>> {
             val resized = Bitmap.createScaledBitmap(b, 224, 224, true)
@@ -269,6 +397,7 @@ class EyeReportActivity : AppCompatActivity() {
         return Interpreter(map)
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun saveBitmapToCache(bmp: Bitmap, name: String): Uri? {
         return try {
             val f = kotlin.io.path.createTempFile(prefix = name, suffix = ".jpg").toFile()
@@ -303,7 +432,7 @@ class EyeReportActivity : AppCompatActivity() {
         } catch (e: Exception) { e.printStackTrace(); return null }
     }
 
-    // -- upload & save function for eye (uploads preview + left + right images)
+    // upload & save report (same as earlier)
     private fun uploadImagesAndSaveReport(
         uid: String,
         previewUriStr: String?,
@@ -369,5 +498,31 @@ class EyeReportActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    // helper to show product dialog (re-use from ReportActivity if available)
+    private fun showProductDialog(p: RecProduct) {
+        val d = android.app.Dialog(this)
+        val v = layoutInflater.inflate(R.layout.dialog_product_detail, null)
+        d.setContentView(v)
+
+        val iv = v.findViewById<ImageView>(R.id.ivDlgImage)
+        val tvTitle = v.findViewById<TextView>(R.id.tvDlgTitle)
+        val tvDesc = v.findViewById<TextView>(R.id.tvDlgDesc)
+        val btnClose = v.findViewById<ImageButton>(R.id.btnCloseDialog)
+
+        tvTitle.text = p.name
+        tvDesc.text = p.short
+        if (!p.localImage.isNullOrEmpty()) {
+            val resId = resources.getIdentifier(p.localImage, "drawable", packageName)
+            if (resId != 0) iv.setImageResource(resId) else iv.setImageResource(android.R.color.transparent)
+        } else if (!p.imageUrl.isNullOrEmpty()) {
+            try { iv.setImageURI(Uri.parse(p.imageUrl)) } catch (_: Exception) { iv.setImageResource(android.R.color.transparent) }
+        } else iv.setImageResource(android.R.color.transparent)
+
+        btnClose.setOnClickListener { d.dismiss() }
+
+        d.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        d.show()
     }
 }

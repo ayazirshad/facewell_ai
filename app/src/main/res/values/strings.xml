@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">FaceWellAI</string>
     <string name="openweather_api_key">0c163d199c09796e5c1ed4f520b7323d</string>
+    <string name="default_web_client_id">5862436299-01jpfreljufr927g45j5eqfv1efof1pv.apps.googleusercontent.com</string>
 </resources>

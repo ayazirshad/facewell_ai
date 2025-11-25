@@ -5,13 +5,12 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 interface OpenWeatherApi {
-    // One Call 3.0 (some accounts use /onecall)
-    @GET("data/2.5/onecall")
-    fun oneCall(
+    // One-call removed for free plan: use current weather endpoint
+    @GET("data/2.5/weather")
+    fun currentWeather(
         @Query("lat") lat: Double,
         @Query("lon") lon: Double,
-        @Query("exclude") exclude: String = "minutely,daily,hourly,alerts",
         @Query("units") units: String = "metric",
         @Query("appid") apiKey: String
-    ): Call<OneCallResponse>
+    ): Call<WeatherResponse>
 }

@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
+    implementation(libs.androidx.swiperefreshlayout)
 
     // ===== REMOVED: LiteRT (was causing duplicate TFLite classes) =====
     // implementation(libs.litert.support.api)

@@ -1,327 +1,339 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/scroll"
+    android:id="@+id/swipeRefresh"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/white"
-    android:fillViewport="true"
-    android:clipToPadding="false"
-    android:paddingBottom="90dp">
+    android:background="@color/white">
 
-    <LinearLayout
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scroll"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:clipToPadding="false"
+        android:paddingBottom="90dp">
 
-        <!-- Header -->
-        <FrameLayout
-            android:id="@+id/header"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:background="@drawable/bg_home_header_round"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp"
-            android:paddingTop="28dp">
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
-            <LinearLayout
+            <!-- Header -->
+            <FrameLayout
+                android:id="@+id/header"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="30dp"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tvGreeting"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Hello, User"
-                    android:textColor="@color/on_teal"
-                    android:textSize="30sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvQuestion"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:text="How’s your face condition?"
-                    android:textColor="@color/on_teal"
-                    android:textSize="20sp" />
-            </LinearLayout>
-        </FrameLayout>
-
-        <!-- WEATHER CARD: appears only if weather is available -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardWeather"
-            android:layout_width="match_parent"
-            android:layout_height="72dp"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginTop="12dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/teal_light"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="horizontal"
-                android:padding="10dp"
-                android:gravity="center_vertical">
-
-                <ImageView
-                    android:id="@+id/ivWeatherIcon"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:src="@drawable/ic_weather_placeholder"
-                    android:contentDescription="weather icon"
-                    android:layout_marginEnd="12dp" />
+                android:layout_height="200dp"
+                android:background="@drawable/bg_home_header_round"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="28dp">
 
                 <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="30dp"
                     android:orientation="vertical">
 
                     <TextView
-                        android:id="@+id/tvWeatherTemp"
+                        android:id="@+id/tvGreeting"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="28°C"
-                        android:textSize="18sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/teal_mid"/>
-
-                    <TextView
-                        android:id="@+id/tvWeatherMain"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Clear"
-                        android:textSize="12sp"
-                        android:textColor="@color/text_muted"/>
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="end">
-
-                    <TextView
-                        android:id="@+id/tvWeatherHumidity"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Humidity: 60%"
-                        android:textSize="12sp"
-                        android:textColor="@color/text_muted"/>
-
-                    <TextView
-                        android:id="@+id/tvWeatherUvi"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="UVI: 3"
-                        android:textSize="12sp"
-                        android:textColor="@color/text_muted"/>
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Promo card (Good Morning) — already borderless in your code -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardPromo"
-            android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:layout_margin="16dp"
-            app:cardBackgroundColor="@android:color/transparent"
-            app:cardForegroundColor="@android:color/transparent"
-            app:cardElevation="4dp"
-            app:strokeWidth="0dp"
-            app:strokeColor="@android:color/transparent"
-            app:cardUseCompatPadding="false"
-            app:cardPreventCornerOverlap="true"
-            app:cardCornerRadius="12dp">
-
-            <RelativeLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/bg_promo_card"
-                android:padding="16dp">
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentStart="true"
-                    android:layout_alignParentTop="true"
-                    android:layout_alignParentBottom="true"
-                    android:layout_marginStart="16dp"
-                    android:layout_marginTop="16dp"
-                    android:layout_marginBottom="27dp"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvPromoTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Good Morning"
-                        android:textColor="@color/teal_bg"
-                        android:textSize="18sp"
+                        android:text="Hello, User"
+                        android:textColor="@color/on_teal"
+                        android:textSize="30sp"
                         android:textStyle="bold" />
 
                     <TextView
+                        android:id="@+id/tvQuestion"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:text="Don’t forget to use sunscreen and re-apply it every 3 hours"
-                        android:textColor="#88000000"
-                        android:textSize="12sp" />
+                        android:text="How’s your face condition?"
+                        android:textColor="@color/on_teal"
+                        android:textSize="20sp" />
                 </LinearLayout>
+            </FrameLayout>
 
-            </RelativeLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Quick actions -->
-        <LinearLayout
-            android:id="@+id/rowQuick"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingHorizontal="12dp"
-            android:gravity="center"
-            android:layout_marginTop="4dp">
-
-            <!-- ... your quick action cards unchanged ... -->
+            <!-- WEATHER CARD: now VISIBLE by default (shows placeholders until data arrives) -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/qaSkin"
-                android:layout_width="0dp"
-                android:layout_height="90dp"
-                android:layout_weight="1"
-                android:layout_margin="6dp"
-                app:cardBackgroundColor="@android:color/white"
+                android:id="@+id/cardWeather"
+                android:layout_width="match_parent"
+                android:layout_height="82dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginTop="16dp"
+                app:cardCornerRadius="12dp"
+                app:strokeWidth="0dp"
                 app:cardElevation="2dp"
-                app:strokeColor="@color/input_border"
-                app:strokeWidth="1dp">
+                app:cardBackgroundColor="@color/teal_light"
+                android:visibility="visible">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:gravity="center">
+                    android:orientation="horizontal"
+                    android:padding="10dp"
+                    android:gravity="center_vertical">
 
                     <ImageView
-                        android:layout_width="26dp"
-                        android:layout_height="26dp"
-                        android:src="@drawable/ic_skin"/>
-                    <TextView
+                        android:id="@+id/ivWeatherIcon"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:src="@drawable/ic_weather_placeholder"
+                        android:contentDescription="weather icon"
+                        android:layout_marginEnd="12dp" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvWeatherTemp"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="--°C"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/teal_bg"/>
+
+                        <TextView
+                            android:id="@+id/tvWeatherMain"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Weather unavailable"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_muted"/>
+                        <!-- add this under tvWeatherMain -->
+                        <TextView
+                            android:id="@+id/tvWeatherPlace"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Unknown Location"
+                            android:textSize="11sp"
+                            android:textColor="@color/text_muted"
+                            android:layout_marginTop="2dp"/>
+
+                    </LinearLayout>
+
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="Scan Skin"
-                        android:textSize="12sp"
-                        android:textColor="@color/black"/>
+                        android:orientation="vertical"
+                        android:gravity="end">
+
+                        <TextView
+                            android:id="@+id/tvWeatherHumidity"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Humidity: --"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_muted"/>
+
+                        <TextView
+                            android:id="@+id/tvWeatherFeels"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Feels: --°C"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_muted"/>
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Promo card -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/qaEye"
-                android:layout_width="0dp"
-                android:layout_height="90dp"
-                android:layout_weight="1"
-                android:layout_margin="6dp"
-                app:cardBackgroundColor="@android:color/white"
+                android:id="@+id/cardPromo"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+               android:layout_marginHorizontal="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="0dp"
+                app:cardBackgroundColor="@android:color/transparent"
                 app:cardElevation="2dp"
-                app:strokeColor="@color/input_border"
-                app:strokeWidth="1dp">
+                app:strokeWidth="0dp"
+                app:cardCornerRadius="12dp">
 
-                <LinearLayout
+                <RelativeLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:gravity="center">
+                    android:background="@drawable/bg_promo_card"
+                    android:padding="16dp">
 
-                    <ImageView
-                        android:layout_width="26dp"
-                        android:layout_height="26dp"
-                        android:src="@drawable/ic_eye"/>
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="Scan Eye"
-                        android:textSize="12sp"
-                        android:textColor="@color/black"/>
-                </LinearLayout>
+                        android:layout_alignParentStart="true"
+                        android:layout_alignParentTop="true"
+                        android:layout_alignParentBottom="true"
+                        android:layout_marginStart="16dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="27dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvPromoTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Good Morning"
+                            android:textColor="@color/teal_bg"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="Don’t forget to use sunscreen and re-apply it every 3 hours"
+                            android:textColor="#88000000"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                </RelativeLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/qaStress"
-                android:layout_width="0dp"
-                android:layout_height="90dp"
-                android:layout_weight="1"
-                android:layout_margin="6dp"
-                app:cardBackgroundColor="@android:color/white"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/input_border"
-                app:strokeWidth="1dp">
+            <!-- Quick actions grid: 2x2 -->
+            <GridLayout
+                android:id="@+id/gridQuick"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="2"
+                android:rowCount="2"
+                android:padding="9dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:gravity="center">
+                <!-- Skin -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/qaSkin"
+                    android:layout_width="0dp"
+                    android:layout_height="120dp"
+                    android:layout_margin="8dp"
+                    android:layout_columnWeight="1"
+                    app:cardBackgroundColor="@android:color/white"
+                    app:cardElevation="2dp"
+                    app:strokeColor="@color/input_border"
+                    app:strokeWidth="1dp">
 
-                    <ImageView
-                        android:layout_width="26dp"
-                        android:layout_height="26dp"
-                        android:src="@drawable/ic_mood"/>
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="Stress Check"
-                        android:textSize="12sp"
-                        android:textColor="@color/black"/>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <ImageView
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
+                            android:src="@drawable/ic_skin"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Skin Health"
+                            android:textSize="13sp"
+                            android:textColor="@color/black"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Eye -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/qaEye"
+                    android:layout_width="0dp"
+                    android:layout_height="120dp"
+                    android:layout_margin="8dp"
+                    android:layout_columnWeight="1"
+                    app:cardBackgroundColor="@android:color/white"
+                    app:cardElevation="2dp"
+                    app:strokeColor="@color/input_border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <ImageView
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
+                            android:src="@drawable/ic_eye"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Quick Eye Check"
+                            android:textSize="13sp"
+                            android:textColor="@color/black"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Mood/Stress -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/qaStress"
+                    android:layout_width="0dp"
+                    android:layout_height="120dp"
+                    android:layout_margin="8dp"
+                    android:layout_columnWeight="1"
+                    app:cardBackgroundColor="@android:color/white"
+                    app:cardElevation="2dp"
+                    app:strokeColor="@color/input_border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <ImageView
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
+                            android:src="@drawable/ic_mood"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Mood Check"
+                            android:textSize="13sp"
+                            android:textColor="@color/black"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Full Face -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/qaFullFace"
+                    android:layout_width="0dp"
+                    android:layout_height="120dp"
+                    android:layout_margin="8dp"
+                    android:layout_columnWeight="1"
+                    app:cardBackgroundColor="@android:color/white"
+                    app:cardElevation="2dp"
+                    app:strokeColor="@color/input_border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <ImageView
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
+                            android:src="@drawable/ic_fullface"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Full Face Scan"
+                            android:textSize="13sp"
+                            android:textColor="@color/black"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+            </GridLayout>
+
         </LinearLayout>
-
-        <!-- Lists -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:layout_marginStart="16dp"
-            android:text="Recent Reports"
-            android:textStyle="bold"
-            android:textSize="14sp"/>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvReports"
-            android:layout_width="match_parent"
-            android:layout_height="110dp"
-            android:layout_marginTop="8dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:overScrollMode="never"
-            android:clipToPadding="false"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:layout_marginStart="16dp"
-            android:text="Nearby Clinics"
-            android:textStyle="bold"
-            android:textSize="14sp"/>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvClinics"
-            android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:layout_marginTop="8dp"
-            android:clipToPadding="false"
-            android:overScrollMode="never"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp" />
-    </LinearLayout>
-</androidx.core.widget.NestedScrollView>
+    </androidx.core.widget.NestedScrollView>
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

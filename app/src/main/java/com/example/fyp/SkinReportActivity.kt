@@ -1,11 +1,15 @@
 package com.example.fyp
 
+import android.annotation.SuppressLint
+import android.app.Dialog
 import android.content.Intent
 import android.graphics.*
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -13,10 +17,14 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.google.mlkit.vision.face.FaceLandmark
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -24,7 +32,6 @@ import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
-//import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.io.BufferedReader
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -43,19 +50,22 @@ class SkinReportActivity : AppCompatActivity() {
         const val EXTRA_IMAGE_URI = "extra_image_uri"
         const val MODEL_NAME = "skin_full_int8.tflite"
         const val LABELS_FILE = "labels.txt"
+        const val TAG = "SkinReportActivity"
     }
 
     private lateinit var ivPreview: ImageView
     private lateinit var ivHeatmap: ImageView
     private lateinit var tvSummaryText: TextView
+    private lateinit var tvAccuracyLabel: TextView
     private lateinit var btnSave: MaterialButton
     private lateinit var btnVisit: MaterialButton
     private lateinit var btnGoHome: MaterialButton
     private lateinit var tvRecSummary: TextView
     private lateinit var llTips: LinearLayout
     private lateinit var btnBack: ImageButton
+    private lateinit var rvPatches: RecyclerView
+    private lateinit var tvPatchesTitle: TextView
 
-    // TF / model info
     private lateinit var interpreter: Interpreter
     private var labels: List<String> = emptyList()
     private var inputH = 128
@@ -65,14 +75,19 @@ class SkinReportActivity : AppCompatActivity() {
     private var inputScale = 1.0f
     private var inputZeroPoint = 0
 
-    // firebase
     private val auth by lazy { FirebaseAuth.getInstance() }
     private val db by lazy { FirebaseFirestore.getInstance() }
     private val storage by lazy { FirebaseStorage.getInstance() }
 
-    // cache URIs to save later
     private var previewUriStr: String? = null
     private var faceHeatmapUriStr: String? = null
+
+    private val patchResults = mutableListOf<PatchResult>()
+
+    private var lastFinalLabel: String = "unknown"
+    private var lastFinalProb: Float = 0f
+
+    data class PatchResult(val bmp: Bitmap, val label: String, val confidence: Double)
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -82,43 +97,39 @@ class SkinReportActivity : AppCompatActivity() {
         ivPreview = findViewById(R.id.ivPreview)
         ivHeatmap = findViewById(R.id.ivHeatmap)
         tvSummaryText = findViewById(R.id.tvSummaryText)
+        tvAccuracyLabel = findViewById(R.id.tvAccuracyLabel)
         btnSave = findViewById(R.id.btnSaveReport)
         btnVisit = findViewById(R.id.btnVisitClinic)
         btnGoHome = findViewById(R.id.btnGoHome)
         tvRecSummary = findViewById(R.id.tvRecSummary)
         llTips = findViewById(R.id.llTips)
         btnBack = findViewById(R.id.btnBack)
+        rvPatches = findViewById(R.id.rvPatches)
+        tvPatchesTitle = findViewById(R.id.tvPatchesTitle)
 
         btnBack.setOnClickListener { finish() }
 
-        // Make sure skin recommendations loaded
         RecommendationProvider.loadFromAssets(this, "skin_recommendations.json")
 
-        // load labels & model
         labels = loadLabels(LABELS_FILE)
         try {
             interpreter = loadModel(MODEL_NAME)
-            // read input tensor info
             val t = interpreter.getInputTensor(0)
-            val shape = t.shape() // typically [1,H,W,3]
+            val shape = t.shape()
             if (shape.size >= 3) { inputH = shape[1]; inputW = shape[2] }
             inputDataType = t.dataType()
             inputChannels = if (shape.size >= 4) shape[3] else 3
-            // quant params
             try {
                 val q = t.quantizationParams()
                 inputScale = q.scale
                 inputZeroPoint = q.zeroPoint
-            } catch (_: Exception) {
-                // no quant params -> defaults remain
-            }
+            } catch (_: Exception) { }
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Failed to load model", Toast.LENGTH_SHORT).show()
             finish(); return
         }
 
-        // load preview image
         val imageUriStr = intent.getStringExtra(EXTRA_IMAGE_URI) ?: intent.getStringExtra("extra_image_uri")
         if (imageUriStr.isNullOrEmpty()) { finish(); return }
         val imageUri = Uri.parse(imageUriStr)
@@ -128,21 +139,93 @@ class SkinReportActivity : AppCompatActivity() {
         }
         ivPreview.setImageBitmap(bmp)
 
-        // run analysis in background thread
+        rvPatches.layoutManager = GridLayoutManager(this, 2, RecyclerView.VERTICAL, false)
+        rvPatches.adapter = PatchAdapter(patchResults)
+
+        val loader = Dialog(this)
+        val loaderView = LayoutInflater.from(this).inflate(R.layout.dialog_simple_loader, null)
+        loader.setContentView(loaderView)
+        loader.setCancelable(false)
+        loader.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        loader.show()
+
         Thread {
             try {
                 val summary = runSkinOnBitmap(bmp)
+                val (validPatches, aggProbs) = analyzePatchesFromSelfie(bmp)
+
+                patchResults.clear()
+                for (p in validPatches) {
+                    patchResults.add(PatchResult(p.bmp, p.label, p.confidence))
+                }
+
+                val totalPatches = patchResults.size
+                var finalLabel = "unknown"
+                var finalCount = 0
+                var finalIdx = 0
+
+                if (totalPatches > 0) {
+                    val counts = mutableMapOf<String, Int>()
+                    for (pr in patchResults) {
+                        counts[pr.label] = (counts[pr.label] ?: 0) + 1
+                    }
+                    val maxCount = counts.values.maxOrNull() ?: 0
+                    val labelsWithMax = counts.filter { it.value == maxCount }.keys.toList()
+
+                    if (maxCount >= 3) {
+                        finalLabel = labelsWithMax.first()
+                    } else if (maxCount == 2) {
+                        val bestAggIdx = aggProbs.indices.maxByOrNull { aggProbs[it] } ?: 0
+                        finalLabel = labels.getOrNull(bestAggIdx) ?: labelsWithMax.first()
+                    } else {
+                        val bestAggIdx = aggProbs.indices.maxByOrNull { aggProbs[it] } ?: 0
+                        finalLabel = labels.getOrNull(bestAggIdx) ?: "unknown"
+                    }
+
+                    finalCount = counts[finalLabel] ?: 0
+                    finalIdx = labels.indexOf(finalLabel).coerceAtLeast(0)
+                }
+
+                val finalProb = if (aggProbs.isNotEmpty() && finalIdx in aggProbs.indices) aggProbs[finalIdx] else 0f
+
+                lastFinalLabel = finalLabel
+                lastFinalProb = finalProb
+
+                val displaySummary = if (patchResults.isEmpty()) {
+                    summary
+                } else {
+                    finalLabel.replaceFirstChar {
+                        if (it.isLowerCase()) it.titlecase() else it.toString()
+                    }
+                }
+
                 runOnUiThread {
-                    tvSummaryText.text = summary
+                    tvSummaryText.text = displaySummary
+                    tvAccuracyLabel.text = "Accuracy Level: ${String.format("%.1f", finalProb * 100.0)}%"
+                    rvPatches.adapter?.notifyDataSetChanged()
+                    val recKey = finalLabel.replace("\\s".toRegex(), "").lowercase()
+                    val rec = RecommendationProvider.getSkinRecommendation(recKey)
+                    tvRecSummary.text = rec?.summary ?: "Follow general skin care steps."
+                    llTips.removeAllViews()
+                    rec?.tips?.forEach { tip ->
+                        val tv = layoutInflater.inflate(android.R.layout.simple_list_item_1, llTips, false) as TextView
+                        tv.text = "\u2022  $tip"
+                        tv.setTextColor(resources.getColor(R.color.black))
+                        tv.setTextSize(14f)
+                        llTips.addView(tv)
+                    }
                     ivHeatmap.visibility = View.VISIBLE
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 runOnUiThread { Toast.makeText(this, "Skin analysis failed: ${e.message}", Toast.LENGTH_LONG).show() }
+            } finally {
+                runOnUiThread {
+                    try { if (loader.isShowing) loader.dismiss() } catch (_: Exception) {}
+                }
             }
         }.start()
 
-        // Save report
         btnSave.setOnClickListener {
             val uid = auth.currentUser?.uid
             if (uid == null) {
@@ -151,9 +234,14 @@ class SkinReportActivity : AppCompatActivity() {
             }
             btnSave.isEnabled = false
             btnSave.text = "Saving..."
-            // upload preview + heatmap images (if heatmap generated) then save Firestore doc
+            val summary = tvSummaryText.text.toString()
+            val topLabel = if (lastFinalLabel.isNotEmpty() && lastFinalLabel != "unknown") {
+                lastFinalLabel
+            } else {
+                if (patchResults.isNotEmpty()) patchResults.maxByOrNull { it.confidence }?.label ?: "unknown" else "unknown"
+            }
             uploadImagesAndSaveReport(uid, previewUriStr, faceHeatmapUriStr, type = "skin",
-                summary = tvSummaryText.text.toString(), topLabel = tvRecSummary.text.toString()) { success ->
+                summary = summary, topLabel = topLabel) { success ->
                 runOnUiThread {
                     btnSave.isEnabled = true
                     btnSave.text = "Save Report"
@@ -186,10 +274,135 @@ class SkinReportActivity : AppCompatActivity() {
         }
     }
 
-    /** Runs face detection -> sliding window -> creates heatmap and returns short summary */
+    private fun analyzePatchesFromSelfie(fullBmp: Bitmap): Pair<List<PerPatch>, FloatArray> {
+        val img = InputImage.fromBitmap(fullBmp, 0)
+        val opts = FaceDetectorOptions.Builder()
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+            .build()
+        val detector = FaceDetection.getClient(opts)
+        val faces = com.google.android.gms.tasks.Tasks.await(detector.process(img))
+        if (faces.isEmpty()) return Pair(emptyList(), FloatArray(labels.size) { 0f })
+
+        val face = faces[0]
+        val bbox = face.boundingBox
+        val faceW = bbox.width().toFloat()
+        val faceH = bbox.height().toFloat()
+
+        val leftEye = face.getLandmark(FaceLandmark.LEFT_EYE)?.position
+        val rightEye = face.getLandmark(FaceLandmark.RIGHT_EYE)?.position
+        val nose = face.getLandmark(FaceLandmark.NOSE_BASE)?.position
+        val mouth = face.getLandmark(FaceLandmark.MOUTH_BOTTOM)?.position
+
+        val leftCheekCenter = if (leftEye != null && nose != null) {
+            android.graphics.PointF((leftEye.x + nose.x) / 2f, (leftEye.y + nose.y) / 2f + 0.12f * faceH)
+        } else {
+            android.graphics.PointF(bbox.left + 0.28f * faceW, bbox.top + 0.55f * faceH)
+        }
+        val rightCheekCenter = if (rightEye != null && nose != null) {
+            android.graphics.PointF((rightEye.x + nose.x) / 2f, (rightEye.y + nose.y) / 2f + 0.12f * faceH)
+        } else {
+            android.graphics.PointF(bbox.left + 0.72f * faceW, bbox.top + 0.55f * faceH)
+        }
+        val chinCenter = if (mouth != null) {
+            android.graphics.PointF((bbox.left + bbox.right) / 2f, mouth.y + 0.18f * faceH)
+        } else {
+            android.graphics.PointF((bbox.left + bbox.right) / 2f, bbox.top + 0.85f * faceH)
+        }
+        val foreheadCenter = if (leftEye != null && rightEye != null) {
+            android.graphics.PointF((leftEye.x + rightEye.x) / 2f, min(leftEye.y, rightEye.y) - 0.22f * faceH)
+        } else {
+            android.graphics.PointF((bbox.left + bbox.right) / 2f, bbox.top + 0.2f * faceH)
+        }
+
+        val patchSize = (0.35f * faceW).roundToInt().coerceAtLeast(48)
+
+        fun cropSafeFromCenter(cx: Float, cy: Float, s: Int): Bitmap? {
+            val left = (cx - s / 2f).toInt()
+            val top = (cy - s / 2f).toInt()
+            val l = left.coerceAtLeast(0)
+            val t = top.coerceAtLeast(0)
+            val r = (left + s).coerceAtMost(fullBmp.width)
+            val b = (top + s).coerceAtMost(fullBmp.height)
+            val w = r - l; val h = b - t
+            if (w <= 10 || h <= 10) return null
+            return Bitmap.createBitmap(fullBmp, l, t, w, h)
+        }
+
+        val centers = listOf(
+            leftCheekCenter to "left_cheek",
+            rightCheekCenter to "right_cheek",
+            chinCenter to "chin",
+            foreheadCenter to "forehead"
+        )
+
+        val valid = mutableListOf<PerPatch>()
+        val agg = FloatArray(labels.size) { 0f }
+        var count = 0
+
+        for ((center, tag) in centers) {
+            val pBmp = cropSafeFromCenter(center.x, center.y, patchSize) ?: continue
+            val resized = Bitmap.createScaledBitmap(pBmp, inputW, inputH, true)
+
+            val inputBuffer: ByteBuffer = if (inputDataType == DataType.UINT8 || inputDataType == DataType.INT8) {
+                ByteBuffer.allocateDirect(inputW * inputH * inputChannels).order(ByteOrder.nativeOrder())
+            } else {
+                ByteBuffer.allocateDirect(4 * inputW * inputH * inputChannels).order(ByteOrder.nativeOrder())
+            }
+            inputBuffer.rewind()
+
+            if (inputDataType == DataType.UINT8 || inputDataType == DataType.INT8) {
+                for (y in 0 until inputH) {
+                    for (x in 0 until inputW) {
+                        val p = resized.getPixel(x, y)
+                        val r = ((p shr 16) and 0xFF) / 255.0f
+                        val g = ((p shr 8) and 0xFF) / 255.0f
+                        val b = (p and 0xFF) / 255.0f
+                        val rr = ((r / inputScale).roundToInt() + inputZeroPoint).coerceIn(0,255)
+                        val gg = ((g / inputScale).roundToInt() + inputZeroPoint).coerceIn(0,255)
+                        val bb = ((b / inputScale).roundToInt() + inputZeroPoint).coerceIn(0,255)
+                        inputBuffer.put(rr.toByte()); inputBuffer.put(gg.toByte()); inputBuffer.put(bb.toByte())
+                    }
+                }
+            } else {
+                for (y in 0 until inputH) {
+                    for (x in 0 until inputW) {
+                        val p = resized.getPixel(x, y)
+                        val r = ((p shr 16) and 0xFF) / 255.0f
+                        val g = ((p shr 8) and 0xFF) / 255.0f
+                        val b = (p and 0xFF) / 255.0f
+                        inputBuffer.putFloat(r); inputBuffer.putFloat(g); inputBuffer.putFloat(b)
+                    }
+                }
+            }
+            inputBuffer.rewind()
+
+            val raw = runModelGetOutputAsFloatArray(inputBuffer)
+            val maxv = raw.maxOrNull() ?: 0f
+            val exp = raw.map { Math.exp((it - maxv).toDouble()).toFloat() }
+            val sum = exp.sum()
+            val probs = if (sum > 0f) exp.map { it / sum } else exp.map { 0f }
+
+            for (i in probs.indices) agg[i] += probs[i]
+            count++
+
+            val topIdx = probs.indices.maxByOrNull { probs[it] } ?: 0
+            val topLabel = labels.getOrNull(topIdx) ?: "unknown"
+            val conf = probs[topIdx] * 100.0
+            valid.add(PerPatch(resized, topLabel, conf))
+        }
+
+        if (count > 0) {
+            for (i in agg.indices) agg[i] = agg[i] / count.toFloat()
+        }
+
+        return Pair(valid, agg)
+    }
+
+    data class PerPatch(val bmp: Bitmap, val label: String, val confidence: Double)
+
     @RequiresApi(Build.VERSION_CODES.O)
     private fun runSkinOnBitmap(fullBmp: Bitmap): String {
-        // detect face
         val img = InputImage.fromBitmap(fullBmp, 0)
         val opts = FaceDetectorOptions.Builder()
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
@@ -207,7 +420,6 @@ class SkinReportActivity : AppCompatActivity() {
         val faceRect = android.graphics.Rect(left, top, right, bottom)
         val faceBmp = Bitmap.createBitmap(fullBmp, faceRect.left, faceRect.top, faceRect.width(), faceRect.height())
 
-        // accumulators
         val heatAcc = Array(faceBmp.height) { FloatArray(faceBmp.width) }
         val heatCount = Array(faceBmp.height) { IntArray(faceBmp.width) }
 
@@ -215,7 +427,6 @@ class SkinReportActivity : AppCompatActivity() {
         val winW = inputW
         val stride = (winW * 0.5).roundToInt().coerceAtLeast(1)
 
-        // Iterate sliding windows
         for (y in 0 until max(1, faceBmp.height - winH + 1) step stride) {
             for (x in 0 until max(1, faceBmp.width - winW + 1) step stride) {
                 val w = if (x + winW <= faceBmp.width) winW else (faceBmp.width - x)
@@ -223,7 +434,6 @@ class SkinReportActivity : AppCompatActivity() {
                 val patch = Bitmap.createBitmap(faceBmp, x, y, w, h)
                 val resized = Bitmap.createScaledBitmap(patch, winW, winH, true)
 
-                // prepare input buffer with correct dtype/quant
                 val inputBuffer = if (inputDataType == DataType.UINT8 || inputDataType == DataType.INT8) {
                     ByteBuffer.allocateDirect(winW * winH * inputChannels).order(ByteOrder.nativeOrder())
                 } else {
@@ -238,7 +448,6 @@ class SkinReportActivity : AppCompatActivity() {
                         val g = (p shr 8 and 0xFF)
                         val b = (p and 0xFF)
                         if (inputDataType == DataType.UINT8 || inputDataType == DataType.INT8) {
-                            // quantized: convert normalized float (0..1) -> quantized integer using scale & zeroPoint
                             val rf = r / 255f
                             val gf = g / 255f
                             val bf = b / 255f
@@ -257,14 +466,15 @@ class SkinReportActivity : AppCompatActivity() {
                 }
                 inputBuffer.rewind()
 
-                // run inference (output as float array)
-                val output = Array(1) { FloatArray(labels.size) }
-                interpreter.run(inputBuffer, output)
-                val probs = output[0]
+                val raw = runModelGetOutputAsFloatArray(inputBuffer)
 
-                // use max probability as patch score
-                var maxVal = probs[0]
-                for (i in 1 until probs.size) if (probs[i] > maxVal) maxVal = probs[i]
+                val maxv = raw.maxOrNull() ?: 0f
+                val exp = raw.map { Math.exp((it - maxv).toDouble()).toFloat() }
+                val sum = exp.sum()
+                val soft = if (sum > 0f) exp.map { it / sum } else exp.map { 0f }
+
+                var maxVal = soft[0]
+                for (i in 1 until soft.size) if (soft[i] > maxVal) maxVal = soft[i]
 
                 val pxLeft = x; val pxTop = y
                 val pxRight = min(faceBmp.width - 1, x + winW - 1)
@@ -280,7 +490,6 @@ class SkinReportActivity : AppCompatActivity() {
             }
         }
 
-        // build heatmap
         val heatBmp = Bitmap.createBitmap(faceBmp.width, faceBmp.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(heatBmp)
         val paint = Paint().apply { style = Paint.Style.FILL }
@@ -305,8 +514,6 @@ class SkinReportActivity : AppCompatActivity() {
             }
         }
 
-        // overlay heatmap onto displayed preview
-        // ensure ivPreview has measured dimensions; if not, scale against fullBmp size
         val dispW = ivPreview.width.takeIf { it > 0 } ?: fullBmp.width
         val dispH = ivPreview.height.takeIf { it > 0 } ?: fullBmp.height
         val displayed = Bitmap.createScaledBitmap(fullBmp, dispW, dispH, true)
@@ -323,7 +530,6 @@ class SkinReportActivity : AppCompatActivity() {
         val heatPaint = Paint().apply { alpha = 200 }
         overlayCanvas.drawBitmap(heatScaled, leftOnDisp.toFloat(), topOnDisp.toFloat(), heatPaint)
 
-        // save overlay image to cache to allow upload later
         val overlayUri = saveBitmapToCache(overlayBmp, "skin_heat_${System.currentTimeMillis()}.jpg")
         faceHeatmapUriStr = overlayUri?.toString()
 
@@ -332,7 +538,6 @@ class SkinReportActivity : AppCompatActivity() {
             ivHeatmap.visibility = View.VISIBLE
         }
 
-        // quick coarse sampling for label counts
         val labelCounts = mutableMapOf<String, Int>()
         val sampleStride = max(1, inputW / 2)
         for (yy in 0 until faceBmp.height step sampleStride) {
@@ -364,9 +569,14 @@ class SkinReportActivity : AppCompatActivity() {
                     }
                 }
                 inputBuffer.rewind()
-                val output = Array(1) { FloatArray(labels.size) }
-                interpreter.run(inputBuffer, output)
-                val probs = output[0]
+
+                val raw = runModelGetOutputAsFloatArray(inputBuffer)
+
+                val maxv = raw.maxOrNull() ?: 0f
+                val exp = raw.map { Math.exp((it - maxv).toDouble()).toFloat() }
+                val sum = exp.sum()
+                val probs = if (sum > 0f) exp.map { it / sum } else exp.map { 0f }
+
                 var maxi = 0; var mv = probs[0]
                 for (i in probs.indices) if (probs[i] > mv) { mv = probs[i]; maxi = i }
                 val lbl = labels.getOrNull(maxi) ?: "unknown"
@@ -374,12 +584,15 @@ class SkinReportActivity : AppCompatActivity() {
             }
         }
 
-        val sorted = labelCounts.entries.sortedByDescending { it.value }.take(3)
-        val summaryText = if (sorted.isEmpty()) "No strong findings." else sorted.joinToString(" • ") { "${it.key} (${it.value})" }
+        val topEntry = labelCounts.maxByOrNull { it.value }
+        val topLabel = topEntry?.key ?: "normal"
+        val summaryText = topLabel.replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase() else it.toString()
+        }
 
-        val topLabel = sorted.firstOrNull()?.key ?: "normal"
         val recKey = topLabel.replace("\\s".toRegex(), "").lowercase()
         val rec = RecommendationProvider.getSkinRecommendation(recKey)
+
         runOnUiThread {
             tvRecSummary.text = rec?.summary ?: "Follow general skin care steps."
             llTips.removeAllViews()
@@ -395,7 +608,40 @@ class SkinReportActivity : AppCompatActivity() {
         return summaryText
     }
 
-    // -- Load labels & model utilities
+    private fun runModelGetOutputAsFloatArray(inputBuffer: ByteBuffer): FloatArray {
+        val outTensor = interpreter.getOutputTensor(0)
+        val outShape = outTensor.shape()
+        val num = if (outShape.isNotEmpty()) outShape.last() else labels.size
+        val outType = outTensor.dataType()
+
+        if (outType == DataType.FLOAT32) {
+            val out = Array(1) { FloatArray(num) }
+            interpreter.run(inputBuffer, out)
+            return out[0]
+        }
+
+        if (outType == DataType.UINT8 || outType == DataType.INT8) {
+            val outBuf = ByteBuffer.allocateDirect(num).order(ByteOrder.nativeOrder())
+            outBuf.rewind()
+            interpreter.run(inputBuffer, outBuf)
+            outBuf.rewind()
+
+            val q = try { outTensor.quantizationParams() } catch (_: Exception) { return FloatArray(num) { 0f } }
+            val scale = q.scale
+            val zp = q.zeroPoint
+
+            val res = FloatArray(num)
+            for (i in 0 until num) {
+                val b = outBuf.get()
+                val stored: Int = if (outType == DataType.UINT8) (b.toInt() and 0xFF) else b.toInt()
+                res[i] = (stored - zp) * scale
+            }
+            return res
+        }
+
+        throw IllegalArgumentException("Unsupported output tensor data type: $outType")
+    }
+
     private fun loadLabels(fileName: String): List<String> {
         return try {
             val input = assets.open(fileName)
@@ -412,7 +658,36 @@ class SkinReportActivity : AppCompatActivity() {
         return Interpreter(map)
     }
 
-    // -- save bitmap to temp cache and return Uri string
+    inner class PatchAdapter(private val items: List<PatchResult>) : RecyclerView.Adapter<PatchAdapter.VH>() {
+        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
+            val iv: ImageView = v.findViewById(R.id.ivPatch)
+            val tvLbl: TextView = v.findViewById(R.id.tvPatchLabel)
+            val card: MaterialCardView = v.findViewById(R.id.cardPatch)
+        }
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+            val v = LayoutInflater.from(parent.context).inflate(R.layout.item_patch, parent, false)
+            return VH(v)
+        }
+        @SuppressLint("MissingInflatedId")
+        override fun onBindViewHolder(holder: VH, position: Int) {
+            val ite = items[position]
+            holder.iv.setImageBitmap(ite.bmp)
+            holder.tvLbl.text = "${ite.label} (${String.format("%.1f", ite.confidence)}%)"
+            holder.card.setOnClickListener {
+                val d = android.app.Dialog(this@SkinReportActivity)
+                val vi = layoutInflater.inflate(R.layout.dialog_patch_full, null)
+                val ivf = vi.findViewById<ImageView>(R.id.ivFull)
+                val tv = vi.findViewById<TextView>(R.id.tvFullLabel)
+                if (ivf != null) ivf.setImageBitmap(ite.bmp)
+                if (tv != null) tv.text = holder.tvLbl.text
+                d.setContentView(vi)
+                d.window?.setBackgroundDrawableResource(android.R.color.transparent)
+                d.show()
+            }
+        }
+        override fun getItemCount(): Int = items.size
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     private fun saveBitmapToCache(bmp: Bitmap, name: String): Uri? {
         return try {
@@ -424,7 +699,6 @@ class SkinReportActivity : AppCompatActivity() {
         }
     }
 
-    // decodeBitmap with EXIF handling (same approach used before)
     private fun decodeBitmap(u: Uri): Bitmap? {
         try {
             val firstStream = contentResolver.openInputStream(u) ?: return null
@@ -451,7 +725,6 @@ class SkinReportActivity : AppCompatActivity() {
         } catch (e: Exception) { e.printStackTrace(); return null }
     }
 
-    // --- identical upload function to save report into Firestore and upload images to Storage
     private fun uploadImagesAndSaveReport(
         uid: String,
         previewUriStr: String?,
@@ -489,12 +762,11 @@ class SkinReportActivity : AppCompatActivity() {
             uploaded["preview"] = pUrl ?: ""
             uploadOne(heatUri, "heat_${System.currentTimeMillis()}") { hUrl ->
                 uploaded["heat"] = hUrl ?: ""
-                // build report
                 val report = hashMapOf<String, Any>(
                     "type" to type,
                     "summary" to summary,
                     "topLabel" to topLabel,
-                    "confidence" to 0.0, // you may compute/store an actual confidence if available
+                    "confidence" to 0.0,
                     "previewUrl" to (uploaded["preview"] ?: ""),
                     "heatUrl" to (uploaded["heat"] ?: ""),
                     "createdAt" to System.currentTimeMillis()
@@ -503,7 +775,6 @@ class SkinReportActivity : AppCompatActivity() {
                 userDoc.update("reports", FieldValue.arrayUnion(report as Any))
                     .addOnSuccessListener { onComplete(true) }
                     .addOnFailureListener {
-                        // if update fails, create field
                         val payload = hashMapOf("reports" to listOf(report))
                         userDoc.set(payload, SetOptions.merge())
                             .addOnSuccessListener { onComplete(true) }

@@ -88,7 +88,38 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="@color/text_muted"
-                android:layout_marginTop="6dp"/>
+                android:layout_marginTop="6dp"
+                android:textStyle="bold"/>
+
+
+            <View android:layout_width="match_parent" android:layout_height="8dp"/>
+
+            <!-- Accuracy -->
+            <TextView
+                android:id="@+id/tvAccuracyLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Accuracy Level: --%"
+                android:textStyle="bold"
+                android:textColor="@color/black"/>
+
+            <View android:layout_width="match_parent" android:layout_height="12dp"/>
+
+            <!-- Patch thumbnails -->
+            <TextView
+                android:id="@+id/tvPatchesTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Analyzed patches"
+                android:textStyle="bold"
+                android:textColor="@color/black"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvPatches"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:overScrollMode="never"/>
 
             <View android:layout_width="match_parent" android:layout_height="12dp"/>
 

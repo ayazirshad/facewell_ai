@@ -1,10 +1,12 @@
 package com.example.fyp
 
+import android.app.Dialog
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -13,6 +15,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
@@ -25,11 +29,6 @@ import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.InputStreamReader
-import java.io.BufferedReader
-import java.io.RandomAccessFile
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import kotlin.math.max
@@ -45,11 +44,16 @@ class MoodReportActivity : AppCompatActivity() {
 
     private lateinit var ivPreview: ImageView
     private lateinit var tvSummaryText: TextView
+    private lateinit var tvAccuracyLabel: TextView
     private lateinit var btnSave: MaterialButton
     private lateinit var btnVisit: MaterialButton
     private lateinit var btnGoHome: MaterialButton
     private lateinit var btnBack: ImageButton
     private lateinit var tvReportTitle: TextView
+    private lateinit var llTips: LinearLayout
+    private lateinit var tvRecSummary: TextView
+    private lateinit var tvProductsTitle: TextView
+    private lateinit var rvProducts: RecyclerView
 
     private lateinit var interpreter: Interpreter
     private var inputH = 48
@@ -59,13 +63,15 @@ class MoodReportActivity : AppCompatActivity() {
     private var inputScale = 1.0f
     private var inputZeroPoint = 0
 
-    private val labels = listOf("Angry","Disgusted","Fear","Happy","Sad","Surprise","Neutral")
+    private val labels = listOf("Angry","Disgust","Fear","Happy","Sad","Surprise","Neutral")
 
     private val auth by lazy { FirebaseAuth.getInstance() }
     private val db by lazy { FirebaseFirestore.getInstance() }
     private val storage by lazy { FirebaseStorage.getInstance() }
 
     private var previewUriStr: String? = null
+    private var lastTopLabel: String = "unknown"
+    private var lastConfidence: Double = 0.0
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,14 +80,18 @@ class MoodReportActivity : AppCompatActivity() {
 
         ivPreview = findViewById(R.id.ivPreview)
         tvSummaryText = findViewById(R.id.tvSummaryText)
+        tvAccuracyLabel = findViewById(R.id.tvAccuracyLabel)
         btnSave = findViewById(R.id.btnSaveReport)
         btnVisit = findViewById(R.id.btnVisitClinic)
         btnGoHome = findViewById(R.id.btnGoHome)
         btnBack = findViewById(R.id.btnBack)
         tvReportTitle = findViewById(R.id.tvReportTitle)
+        llTips = findViewById(R.id.llTips)
+        tvRecSummary = findViewById(R.id.tvRecSummary)
+        tvProductsTitle = findViewById(R.id.tvProductsTitle)
+        rvProducts = findViewById(R.id.rvProducts)
 
         tvReportTitle.text = "Mood Report"
-
         btnBack.setOnClickListener { finish() }
 
         try {
@@ -102,6 +112,9 @@ class MoodReportActivity : AppCompatActivity() {
             finish(); return
         }
 
+        // load mood recommendations file
+        RecommendationProvider.loadFromAssets(this, "mood_recommendations.json")
+
         val imageUriStr = intent.getStringExtra(EXTRA_IMAGE_URI) ?: intent.getStringExtra("extra_image_uri")
         if (imageUriStr.isNullOrEmpty()) { finish(); return }
         val imageUri = Uri.parse(imageUriStr)
@@ -111,15 +124,58 @@ class MoodReportActivity : AppCompatActivity() {
         }
         ivPreview.setImageBitmap(bmp)
 
+        // show dialog_simple_loader while running analysis (same loader as ConfirmPhotoActivity)
+        val dlg = Dialog(this)
+        val loaderView = LayoutInflater.from(this).inflate(R.layout.dialog_simple_loader, null)
+        dlg.setContentView(loaderView)
+        dlg.setCancelable(false)
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dlg.show()
+
+        // run model + populate recommendations
         Thread {
             try {
-                val resultText = runMoodOnBitmap(bmp)
+                val (topLabel, conf) = runMoodOnBitmapForTop(bmp)
+                lastTopLabel = topLabel
+                lastConfidence = conf
                 runOnUiThread {
-                    tvSummaryText.text = resultText
+                    // dismiss loader
+                    dlg.dismiss()
+
+                    // show only top predicted mood + accuracy
+                    val confFmt = String.format("%.1f", conf)
+                    tvSummaryText.text = "${topLabel} (${confFmt}%)"
+                    tvAccuracyLabel.text = "Accuracy Level: ${confFmt}%"
+
+                    // load recommendation and populate tips
+                    val key = topLabel.replace("\\s".toRegex(), "").lowercase()
+                    val rec = RecommendationProvider.getMoodRecommendation(key)
+                    if (rec != null) {
+                        tvRecSummary.text = rec.summary
+                        llTips.removeAllViews()
+                        for (tip in rec.tips) {
+                            val tv = layoutInflater.inflate(android.R.layout.simple_list_item_1, llTips, false) as TextView
+                            tv.text = "\u2022  $tip"
+                            tv.setTextColor(resources.getColor(R.color.black))
+                            tv.setTextSize(14f)
+                            llTips.addView(tv)
+                        }
+                        // mood products are empty by design -> hide products
+                        tvProductsTitle.visibility = View.GONE
+                        rvProducts.visibility = View.GONE
+                    } else {
+                        tvRecSummary.text = "No recommendation available."
+                        llTips.removeAllViews()
+                        tvProductsTitle.visibility = View.GONE
+                        rvProducts.visibility = View.GONE
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                runOnUiThread { Toast.makeText(this, "Mood analysis failed: ${e.message}", Toast.LENGTH_LONG).show() }
+                runOnUiThread {
+                    dlg.dismiss()
+                    Toast.makeText(this, "Mood analysis failed: ${e.message}", Toast.LENGTH_LONG).show()
+                }
             }
         }.start()
 
@@ -132,8 +188,8 @@ class MoodReportActivity : AppCompatActivity() {
             btnSave.isEnabled = false
             btnSave.text = "Saving..."
             val summary = tvSummaryText.text.toString()
-            val topLabel = extractTopLabel(summary)
-            val confidence = extractConfidence(summary)
+            val topLabel = lastTopLabel
+            val confidence = lastConfidence
             uploadImagesAndSaveReport(uid, previewUriStr, "mood", summary, topLabel, confidence) { success ->
                 runOnUiThread {
                     btnSave.isEnabled = true
@@ -167,34 +223,15 @@ class MoodReportActivity : AppCompatActivity() {
         }
     }
 
-    private fun extractTopLabel(summary: String): String {
-        val parts = summary.split("\n")
-        if (parts.isEmpty()) return "unknown"
-        val line = parts[0]
-        val idx = line.indexOf('(')
-        return if (idx > 0) line.substring(0, idx).trim() else line.trim()
-    }
-
-    private fun extractConfidence(summary: String): Double {
-        val parts = summary.split("\n")
-        if (parts.isEmpty()) return 0.0
-        val line = parts[0]
-        val idx1 = line.indexOf('(')
-        val idx2 = line.indexOf('%')
-        return if (idx1 > 0 && idx2 > idx1) {
-            val num = line.substring(idx1 + 1, idx2).trim()
-            try { num.toDouble() } catch (_: Exception) { 0.0 }
-        } else 0.0
-    }
-
-    private fun runMoodOnBitmap(fullBmp: Bitmap): String {
+    // returns top label and confidence (0-100)
+    private fun runMoodOnBitmapForTop(fullBmp: Bitmap): Pair<String, Double> {
         val img = InputImage.fromBitmap(fullBmp, 0)
         val opts = FaceDetectorOptions.Builder()
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
             .build()
         val detector = FaceDetection.getClient(opts)
         val faces = com.google.android.gms.tasks.Tasks.await(detector.process(img))
-        if (faces.isEmpty()) return "No face detected."
+        if (faces.isEmpty()) return Pair("No face detected", 0.0)
         val face = faces[0]
         val bbox = face.boundingBox
         val pad = (0.15 * max(bbox.width(), bbox.height())).toInt()
@@ -207,9 +244,9 @@ class MoodReportActivity : AppCompatActivity() {
 
         val resized = Bitmap.createScaledBitmap(faceBmp, inputW, inputH, true)
         val inputBuffer = if (inputDataType == DataType.UINT8 || inputDataType == DataType.INT8) {
-            ByteBuffer.allocateDirect(inputW * inputH * inputChannels).order(ByteOrder.nativeOrder())
+            java.nio.ByteBuffer.allocateDirect(inputW * inputH * inputChannels).order(java.nio.ByteOrder.nativeOrder())
         } else {
-            ByteBuffer.allocateDirect(4 * inputW * inputH * inputChannels).order(ByteOrder.nativeOrder())
+            java.nio.ByteBuffer.allocateDirect(4 * inputW * inputH * inputChannels).order(java.nio.ByteOrder.nativeOrder())
         }
         inputBuffer.rewind()
         for (y in 0 until inputH) {
@@ -238,16 +275,7 @@ class MoodReportActivity : AppCompatActivity() {
         val topIdx = probs.indices.maxByOrNull { probs[it] } ?: 0
         val topLabel = labels.getOrNull(topIdx) ?: "unknown"
         val conf = (probs[topIdx] * 100.0)
-        val sb = StringBuilder()
-        sb.append("${topLabel} (${String.format("%.1f", conf)}%)\n")
-        sb.append("Top-3:\n")
-        val sorted = probs.mapIndexed { idx, v -> idx to v }.sortedByDescending { it.second }.take(3)
-        for ((idx, v) in sorted) {
-            val lab = labels.getOrNull(idx) ?: "IDX_$idx"
-            sb.append("${lab}: ${String.format("%.3f", v)}\n")
-        }
-
-        return sb.toString()
+        return Pair(topLabel, conf)
     }
 
     private fun loadModel(modelName: String): Interpreter {

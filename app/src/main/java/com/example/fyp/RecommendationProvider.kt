@@ -24,18 +24,19 @@ data class Recommendation(
 object RecommendationProvider {
     private var eyeMap: Map<String, Recommendation>? = null
     private var skinMap: Map<String, Recommendation>? = null
+    private var moodMap: Map<String, Recommendation>? = null
 
     /**
      * Load recommendations from assets.
      * Backwards-compatible:
      *  - If filename contains "eye" -> loads eye map only (old behavior).
      *  - If filename contains "skin" -> loads skin map only.
-     *  - If filename is omitted or equals "both", attempt to load both defaults.
+     *  - If filename contains "mood" -> loads mood map only.
+     *  - If filename is omitted or equals "both", attempt to load default eye & skin.
      */
     fun loadFromAssets(context: Context, filename: String? = null) {
         try {
             if (filename.isNullOrBlank() || filename == "both") {
-                // attempt load both
                 if (eyeMap == null) eyeMap = loadMap(context, "eye_recommendations.json", "eye")
                 if (skinMap == null) skinMap = loadMap(context, "skin_recommendations.json", "skin")
                 return
@@ -44,17 +45,22 @@ object RecommendationProvider {
             when {
                 "eye" in lower -> { if (eyeMap == null) eyeMap = loadMap(context, filename, "eye") }
                 "skin" in lower -> { if (skinMap == null) skinMap = loadMap(context, filename, "skin") }
-                else -> { // fallback: attempt to load the provided file as either
-                    val m = loadMap(context, filename, "eye")
-                    if (m.isNotEmpty()) eyeMap = m
-                    val m2 = loadMap(context, filename, "skin")
-                    if (m2.isNotEmpty()) skinMap = m2
+                "mood" in lower -> { if (moodMap == null) moodMap = loadMap(context, filename, "mood") }
+                else -> {
+                    // try as generic: attempt to load each root
+                    val mEye = loadMap(context, filename, "eye")
+                    if (mEye.isNotEmpty()) eyeMap = mEye
+                    val mSkin = loadMap(context, filename, "skin")
+                    if (mSkin.isNotEmpty()) skinMap = mSkin
+                    val mMood = loadMap(context, filename, "mood")
+                    if (mMood.isNotEmpty()) moodMap = mMood
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
             if (eyeMap == null) eyeMap = mapOf()
             if (skinMap == null) skinMap = mapOf()
+            if (moodMap == null) moodMap = mapOf()
         }
     }
 
@@ -117,5 +123,10 @@ object RecommendationProvider {
     // New skin getter
     fun getSkinRecommendation(key: String): Recommendation? {
         return skinMap?.get(key)
+    }
+
+    // New mood getter
+    fun getMoodRecommendation(key: String): Recommendation? {
+        return moodMap?.get(key)
     }
 }

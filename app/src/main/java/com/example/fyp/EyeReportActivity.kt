@@ -1,15 +1,15 @@
 package com.example.fyp
 
+import android.app.Dialog
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -17,11 +17,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.setPadding
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
@@ -32,6 +30,7 @@ import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import org.tensorflow.lite.Interpreter
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import kotlin.math.max
@@ -71,10 +70,6 @@ class EyeReportActivity : AppCompatActivity() {
     private var leftCropUriStr: String? = null
     private var rightCropUriStr: String? = null
 
-    // overlay spinner (created at runtime)
-    private var loadingOverlay: FrameLayout? = null
-    private var progressIndicator: CircularProgressIndicator? = null
-
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,9 +97,6 @@ class EyeReportActivity : AppCompatActivity() {
         val tvTitle = findViewById<TextView>(R.id.tvReportTitle)
         tvTitle.text = "Eye Report"
 
-        // create runtime overlay spinner (uses same look as your LoginActivity spinner)
-        createLoadingOverlay()
-
         // load model
         try {
             interpreter = loadModel()
@@ -128,14 +120,20 @@ class EyeReportActivity : AppCompatActivity() {
         }
         ivPreview.setImageBitmap(bmp)
 
-        // show loader then run detection + model in background
-        showLoading(true)
+        // show dialog_simple_loader (same as ConfirmPhotoActivity)
+        val dlg = Dialog(this)
+        val loaderView = LayoutInflater.from(this).inflate(R.layout.dialog_simple_loader, null)
+        dlg.setContentView(loaderView)
+        dlg.setCancelable(false)
+        dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dlg.show()
+
         Thread {
             try {
                 val (leftBmp, rightBmp) = detectAndCropEyes(bmp)
                 if (leftBmp == null || rightBmp == null) {
                     runOnUiThread {
-                        showLoading(false)
+                        dlg.dismiss()
                         Toast.makeText(this, "Eyes not clearly detected", Toast.LENGTH_SHORT).show()
                     }
                     return@Thread
@@ -151,6 +149,8 @@ class EyeReportActivity : AppCompatActivity() {
 
                 // update UI (labels, confidences, crops)
                 runOnUiThread {
+                    dlg.dismiss()
+
                     ivLeftCrop.setImageBitmap(leftBmp)
                     ivRightCrop.setImageBitmap(rightBmp)
 
@@ -199,14 +199,11 @@ class EyeReportActivity : AppCompatActivity() {
                         tvProductsTitle.visibility = View.GONE
                         rvProducts.visibility = View.GONE
                     }
-
-                    // hide loader now
-                    showLoading(false)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 runOnUiThread {
-                    showLoading(false)
+                    dlg.dismiss()
                     Toast.makeText(this, "Eye analysis failed.", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -249,71 +246,6 @@ class EyeReportActivity : AppCompatActivity() {
             i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             i.putExtra("open_tab", "home")
             startActivity(i); finish()
-        }
-    }
-
-    /**
-     * Create a runtime full-screen overlay with a dim background and a CircularProgressIndicator.
-     * IDs match your login spinner-like layout: overlay id -> "loadingOverlay", progress id -> "progress".
-     * This avoids changing XML files.
-     */
-    private fun createLoadingOverlay() {
-        // root container to attach overlay
-        val root = try {
-            findViewById<View>(R.id.reportRoot) as? FrameLayout
-        } catch (_: Exception) { null }
-
-        // fallback to decor view if not present
-        val parent = if (root != null) root else {
-            val decor = window.decorView.findViewById<FrameLayout>(android.R.id.content)
-            decor
-        }
-
-        // build overlay FrameLayout programmatically
-        val overlay = FrameLayout(this).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            isClickable = true
-            isFocusable = true
-            elevation = 16f
-            visibility = View.GONE
-            id = View.generateViewId() // dynamic id; we keep reference
-        }
-
-        // dim background view
-        val dim = View(this).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            setBackgroundColor(0x80000000.toInt()) // #80000000
-        }
-        overlay.addView(dim)
-
-        // centered progress indicator
-        val progress = CircularProgressIndicator(this).apply {
-            val sizeDp = (48 * resources.displayMetrics.density).toInt()
-            layoutParams = FrameLayout.LayoutParams(sizeDp, sizeDp, Gravity.CENTER)
-            isIndeterminate = true
-            // no explicit color set here — uses default accent
-            id = View.generateViewId()
-        }
-        overlay.addView(progress)
-
-        // attach overlay to parent
-        parent.addView(overlay)
-
-        // keep refs
-        loadingOverlay = overlay
-        progressIndicator = progress
-    }
-
-    private fun showLoading(show: Boolean) {
-        runOnUiThread {
-            loadingOverlay?.visibility = if (show) View.VISIBLE else View.GONE
-            progressIndicator?.visibility = if (show) View.VISIBLE else View.GONE
         }
     }
 
@@ -407,29 +339,52 @@ class EyeReportActivity : AppCompatActivity() {
     }
 
     private fun decodeBitmap(u: Uri): Bitmap? {
+        var firstStream: InputStream? = null
         try {
-            val firstStream = contentResolver.openInputStream(u) ?: return null
-            val options = android.graphics.BitmapFactory.Options().apply {
-                inMutable = true; inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+            firstStream = contentResolver.openInputStream(u)
+            val options = BitmapFactory.Options().apply {
+                inMutable = true
+                inPreferredConfig = Bitmap.Config.ARGB_8888
             }
-            val decoded = android.graphics.BitmapFactory.decodeStream(firstStream, null, options)
-            firstStream.close()
+            val decoded = BitmapFactory.decodeStream(firstStream, null, options)
+            firstStream?.close()
             if (decoded == null) return null
-            val exifStream = contentResolver.openInputStream(u)
-            val exif = androidx.exifinterface.media.ExifInterface(exifStream!!)
-            val orientation = exif.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL)
-            exifStream.close()
-            val matrix = android.graphics.Matrix()
-            when (orientation) {
-                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+
+            var exifStream: InputStream? = null
+            try {
+                exifStream = contentResolver.openInputStream(u)
+                val exif = androidx.exifinterface.media.ExifInterface(exifStream!!)
+                val orientation = exif.getAttributeInt(
+                    androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                )
+
+                val matrix = android.graphics.Matrix()
+                when (orientation) {
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL -> { }
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSPOSE -> { matrix.postRotate(90f); matrix.postScale(-1f, 1f) }
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSVERSE -> { matrix.postRotate(270f); matrix.postScale(-1f, 1f) }
+                    else -> { }
+                }
+
+                if (matrix.isIdentity) return decoded
+                val oriented = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+                if (oriented != decoded) decoded.recycle()
+                return oriented
+            } finally {
+                try { exifStream?.close() } catch (_: Exception) {}
             }
-            if (matrix.isIdentity) return decoded
-            val oriented = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-            if (oriented != decoded) decoded.recycle()
-            return oriented
-        } catch (e: Exception) { e.printStackTrace(); return null }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        } finally {
+            try { firstStream?.close() } catch (_: Exception) {}
+        }
     }
 
     // upload & save report (same as earlier)

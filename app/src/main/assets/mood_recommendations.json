@@ -1,0 +1,88 @@
+{
+  "mood": {
+    "angry": {
+      "title": "Anger / Irritability",
+      "summary": "Anger can come from stress, unmet needs, or physical discomfort. Short grounding and breathing practices help calm the nervous system and protect facial tension from lasting (jaw/forehead) strain.",
+      "tips": [
+        "Pause and breathe: try 4-4-4 breathing (inhale 4s, hold 4s, exhale 4s) for 1–2 minutes.",
+        "Do a quick facial release: massage jaw and temples with light circular motions for 30–60 seconds.",
+        "Take a 5–10 minute walk outside to change perspective and reduce built-up tension.",
+        "Use grounded posture: sit/stand with shoulders relaxed and chin level to reduce facial clenching.",
+        "Write one short sentence about what’s bothering you — externalizing reduces rumination."
+      ],
+      "products": []
+    },
+    "disgust": {
+      "title": "Disgust / Aversion",
+      "summary": "Disgust is a protective emotion but can cause tightened facial expressions and avoidance. Gentle exposure and sensory grounding reduce reactivity and help keep facial muscles relaxed.",
+      "tips": [
+        "Name the sensation aloud (e.g., “That feels uncomfortable”) to reduce its intensity.",
+        "Try a 30-second sensory reset: hold a cool glass of water and focus on the feeling.",
+        "Soften your face: deliberately relax mouth, forehead and jaw for 20 seconds.",
+        "Limit immediate avoidance—step back briefly, breathe, then decide the next action.",
+        "If triggered by smell/food, rinse mouth and change environment to a neutral scent."
+      ],
+      "products": []
+    },
+    "fear": {
+      "title": "Fear / Anxiety",
+      "summary": "Fear provokes alertness and facial tension (wide eyes, furrowed brow). Short co-regulation strategies and slow breathing help lower adrenaline and protect eye strain and tense expressions.",
+      "tips": [
+        "Slow diaphragmatic breathing: 4–6 slow breaths per minute for two minutes.",
+        "Ground with senses: list 5 things you see, 4 you can touch, 3 you hear, 2 you smell, 1 you taste.",
+        "Lower screen brightness and take soft-focus breaks to avoid wide-eyed strain.",
+        "Try progressive muscle relaxation for face: tense 3s, release 7s, focusing on jaw/forehead.",
+        "If it's anticipatory fear, write the worst-case plan + one small next step to regain control."
+      ],
+      "products": []
+    },
+    "happy": {
+      "title": "Happiness / Joy",
+      "summary": "Happiness shows as relaxed, uplifting facial expressions. Reinforce healthy habits that keep your face and skin glowing and prevent fatigue after emotional highs.",
+      "tips": [
+        "Smile gently for 20 seconds (even a deliberate smile can boost mood) and breathe slowly.",
+        "Hydrate and rest—positive emotion can still tax energy; aim for a brief 10–15 minute rest after big events.",
+        "Protect skin from excess sun or sweat after outdoor celebration—wash face and apply sunscreen.",
+        "Capture the moment: take one photo or write a short gratitude note to reinforce positive memory.",
+        "Keep regular sleep and meal patterns to sustain mood and maintain healthy facial appearance."
+      ],
+      "products": []
+    },
+    "sad": {
+      "title": "Sadness / Low mood",
+      "summary": "Sadness often relaxes facial muscles and can lead to fatigue or puffy eyes. Small behavioral activations and self-care preserve facial health and help mood recover.",
+      "tips": [
+        "Allow a short, intentional time to feel (5–15 minutes) then do one small activity (walk, call a friend).",
+        "Apply cold/warm compress to the face or eyes for 5–10 minutes to reduce puffiness and refresh.",
+        "Practice light movement (stretching or a 10-minute walk) to increase circulation and energy.",
+        "Use gentle facial massage (cheeks, under-eyes) to relieve stagnation and improve circulation.",
+        "Keep a hydration and sleep checkpoint: drink a glass of water and plan a short, consistent bedtime."
+      ],
+      "products": []
+    },
+    "surprise": {
+      "title": "Surprise / Startle",
+      "summary": "Surprise is brief and sharp — it can cause sudden facial tension (raised brows, widened eyes). Quick grounding and softening reduce strain and prevent lasting tension.",
+      "tips": [
+        "Take three slow, full breaths to reset after the startle.",
+        "Blink slowly several times and soften your gaze to relax eye muscles.",
+        "Drop shoulders and loosen the jaw with gentle circular movements for 20–30 seconds.",
+        "If heart rate feels high, place one hand on your chest and breathe slowly until steadier.",
+        "Reflect briefly on what surprised you and whether action is needed before reacting."
+      ],
+      "products": []
+    },
+    "neutral": {
+      "title": "Neutral / Baseline",
+      "summary": "Neutral is a stable baseline. Maintain simple daily routines that protect facial relaxation, eye comfort, and skin micro-stress to keep your face well over time.",
+      "tips": [
+        "Follow the 20-20-20 rule during screen work to avoid eye strain (every 20 min look 20 ft for 20 s).",
+        "Do a 60-second micro-break every hour: stand, roll shoulders, soften jaw and forehead.",
+        "Hydrate consistently and keep an even sleep schedule to prevent puffiness and fatigue.",
+        "Practice a short daily face-care ritual: gentle cleansing and light massage to improve circulation.",
+        "When stressed rises, use a 2-minute breathing or grounding exercise to preserve neutral expression."
+      ],
+      "products": []
+    }
+  }
+}

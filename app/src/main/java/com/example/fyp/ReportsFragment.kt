@@ -9,6 +9,8 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -46,7 +48,7 @@ class ReportsFragment : Fragment(R.layout.activity_reports_fragment) {
 
         // setup
         rvReports.layoutManager = LinearLayoutManager(requireContext())
-        rvReports.adapter = ReportAdapter(listOf()) { /* placeholder */ }
+        rvReports.adapter = ReportAdapter(listOf(), { /* placeholder */ }, null)
 
         // filters
         btnEye.setOnClickListener { applyFilter("eye") }
@@ -128,10 +130,11 @@ class ReportsFragment : Fragment(R.layout.activity_reports_fragment) {
         } else {
             rvReports.visibility = View.VISIBLE
             emptyPlaceholder.visibility = View.GONE
-            rvReports.adapter = ReportAdapter(filtered) { report ->
-                // show detail dialog
-                showReportDialog(report)
-            }
+            // pass delete lambda to adapter
+            rvReports.adapter = ReportAdapter(filtered,
+                { report -> showReportDialog(report) },
+                { report -> confirmAndDeleteReport(report) }
+            )
         }
     }
 
@@ -169,5 +172,68 @@ class ReportsFragment : Fragment(R.layout.activity_reports_fragment) {
         d.window?.setLayout(w, h)
         d.window?.setBackgroundDrawableResource(android.R.color.transparent)
         d.show()
+    }
+
+    private fun confirmAndDeleteReport(report: Report) {
+        // show confirmation dialog (you will provide custom design later; using simple builder now)
+        AlertDialog.Builder(requireContext())
+            .setTitle("Delete report")
+            .setMessage("Are you sure you want to delete this report? This action cannot be undone.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Delete") { _, _ ->
+                performDeleteReport(report)
+            }
+            .show()
+    }
+
+    private fun performDeleteReport(report: Report) {
+        val uid = auth.currentUser?.uid ?: return
+        val userDocRef = db.collection("users").document(uid)
+
+        // read current reports array, remove the matching one, then update
+        userDocRef.get()
+            .addOnSuccessListener { doc ->
+                val raw = doc.get("reports")
+                if (raw is MutableList<*>) {
+                    val mutable = raw.toMutableList()
+                    var removed = false
+                    val iter = mutable.listIterator()
+                    while (iter.hasNext()) {
+                        val item = iter.next()
+                        if (item is Map<*, *>) {
+                            val itemCreated = ((item["createdAt"] as? Number)?.toLong() ?: 0L)
+                            val itemType = (item["type"] as? String) ?: ""
+                            val itemSummary = (item["summary"] as? String) ?: ""
+
+                            if (itemCreated == report.createdAt && itemType.equals(report.type, ignoreCase = true) && itemSummary == report.summary) {
+                                // found the match -> remove
+                                iter.remove()
+                                removed = true
+                                break
+                            }
+                        }
+                    }
+
+                    if (removed) {
+                        // update the document
+                        userDocRef.update("reports", mutable)
+                            .addOnSuccessListener {
+                                Toast.makeText(requireContext(), "Report deleted", Toast.LENGTH_SHORT).show()
+                                // refresh local copy
+                                loadReportsFromFirestore()
+                            }
+                            .addOnFailureListener { e ->
+                                Toast.makeText(requireContext(), "Failed to delete: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
+                    } else {
+                        Toast.makeText(requireContext(), "Could not find that report to delete", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(requireContext(), "No reports to delete", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(requireContext(), "Failed: ${e.message}", Toast.LENGTH_LONG).show()
+            }
     }
 }

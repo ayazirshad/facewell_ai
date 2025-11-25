@@ -103,6 +103,13 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
     private fun handleOpenTabIntent(intent: Intent) {
         val open = intent.getStringExtra("open_tab") ?: return
         when (open) {
+            "home" -> {
+                // select clinics tab
+                bottomNav.selectedItemId = R.id.nav_home
+                val page = idToPage[R.id.nav_home] ?: MainPagerAdapter.Page.HOME
+                val index = MainPagerAdapter.Page.values().indexOf(page)
+                viewPager.setCurrentItem(index, false)
+            }
             "clinics" -> {
                 // select clinics tab
                 bottomNav.selectedItemId = R.id.nav_clinics
@@ -116,7 +123,13 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
                 val index = MainPagerAdapter.Page.values().indexOf(page)
                 viewPager.setCurrentItem(index, false)
             }
-            // add more options if needed
+            "profile" -> {
+                bottomNav.selectedItemId = R.id.nav_profile
+                val page = idToPage[R.id.nav_profile] ?: MainPagerAdapter.Page.PROFILE
+                val index = MainPagerAdapter.Page.values().indexOf(page)
+                viewPager.setCurrentItem(index, false)
+            }
+
         }
     }
 

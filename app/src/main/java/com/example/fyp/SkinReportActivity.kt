@@ -21,10 +21,6 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.FaceDetection
-import com.google.mlkit.vision.face.FaceDetectorOptions
-import com.google.mlkit.vision.face.FaceLandmark
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -43,6 +39,8 @@ import java.nio.channels.FileChannel
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import com.example.fyp.utils.ModelLoader
+import com.example.fyp.utils.MLUtils
 
 class SkinReportActivity : AppCompatActivity() {
 
@@ -113,7 +111,8 @@ class SkinReportActivity : AppCompatActivity() {
 
         labels = loadLabels(LABELS_FILE)
         try {
-            interpreter = loadModel(MODEL_NAME)
+            // use ModelLoader helper
+            interpreter = ModelLoader.loadModelFromAssets(this, MODEL_NAME)
             val t = interpreter.getInputTensor(0)
             val shape = t.shape()
             if (shape.size >= 3) { inputH = shape[1]; inputW = shape[2] }
@@ -134,7 +133,9 @@ class SkinReportActivity : AppCompatActivity() {
         if (imageUriStr.isNullOrEmpty()) { finish(); return }
         val imageUri = Uri.parse(imageUriStr)
         previewUriStr = imageUri.toString()
-        val bmp = decodeBitmap(imageUri) ?: run {
+
+        // decode via helper (EXIF-aware)
+        val bmp = MLUtils.decodeBitmap(contentResolver, imageUri) ?: run {
             Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show(); finish(); return
         }
         ivPreview.setImageBitmap(bmp)
@@ -151,11 +152,21 @@ class SkinReportActivity : AppCompatActivity() {
 
         Thread {
             try {
-                val summary = runSkinOnBitmap(bmp)
-                val (validPatches, aggProbs) = analyzePatchesFromSelfie(bmp)
+                // Use helper to run the heavy coarse label sampling used later for patches
+                val summary = runSkinOnBitmap(bmp) // heatmap + summary (preserves original heatmap behavior)
 
+                // use MLUtils analyze helper to get patches + aggregated probabilities (mapping to local PatchResult)
+                val (validPatchesFromHelper, aggProbs) = MLUtils.analyzePatchesFromSelfieBlocking(
+                    bmp,
+                    interpreter,
+                    labels,
+                    inputW, inputH, inputChannels,
+                    inputDataType,
+                    inputScale, inputZeroPoint
+                )
+                // map MLUtils.PatchResult -> local PatchResult (signature compatible)
                 patchResults.clear()
-                for (p in validPatches) {
+                for (p in validPatchesFromHelper) {
                     patchResults.add(PatchResult(p.bmp, p.label, p.confidence))
                 }
 
@@ -274,141 +285,13 @@ class SkinReportActivity : AppCompatActivity() {
         }
     }
 
-    private fun analyzePatchesFromSelfie(fullBmp: Bitmap): Pair<List<PerPatch>, FloatArray> {
-        val img = InputImage.fromBitmap(fullBmp, 0)
-        val opts = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
-            .build()
-        val detector = FaceDetection.getClient(opts)
-        val faces = com.google.android.gms.tasks.Tasks.await(detector.process(img))
-        if (faces.isEmpty()) return Pair(emptyList(), FloatArray(labels.size) { 0f })
-
-        val face = faces[0]
-        val bbox = face.boundingBox
-        val faceW = bbox.width().toFloat()
-        val faceH = bbox.height().toFloat()
-
-        val leftEye = face.getLandmark(FaceLandmark.LEFT_EYE)?.position
-        val rightEye = face.getLandmark(FaceLandmark.RIGHT_EYE)?.position
-        val nose = face.getLandmark(FaceLandmark.NOSE_BASE)?.position
-        val mouth = face.getLandmark(FaceLandmark.MOUTH_BOTTOM)?.position
-
-        val leftCheekCenter = if (leftEye != null && nose != null) {
-            android.graphics.PointF((leftEye.x + nose.x) / 2f, (leftEye.y + nose.y) / 2f + 0.12f * faceH)
-        } else {
-            android.graphics.PointF(bbox.left + 0.28f * faceW, bbox.top + 0.55f * faceH)
-        }
-        val rightCheekCenter = if (rightEye != null && nose != null) {
-            android.graphics.PointF((rightEye.x + nose.x) / 2f, (rightEye.y + nose.y) / 2f + 0.12f * faceH)
-        } else {
-            android.graphics.PointF(bbox.left + 0.72f * faceW, bbox.top + 0.55f * faceH)
-        }
-        val chinCenter = if (mouth != null) {
-            android.graphics.PointF((bbox.left + bbox.right) / 2f, mouth.y + 0.18f * faceH)
-        } else {
-            android.graphics.PointF((bbox.left + bbox.right) / 2f, bbox.top + 0.85f * faceH)
-        }
-        val foreheadCenter = if (leftEye != null && rightEye != null) {
-            android.graphics.PointF((leftEye.x + rightEye.x) / 2f, min(leftEye.y, rightEye.y) - 0.22f * faceH)
-        } else {
-            android.graphics.PointF((bbox.left + bbox.right) / 2f, bbox.top + 0.2f * faceH)
-        }
-
-        val patchSize = (0.35f * faceW).roundToInt().coerceAtLeast(48)
-
-        fun cropSafeFromCenter(cx: Float, cy: Float, s: Int): Bitmap? {
-            val left = (cx - s / 2f).toInt()
-            val top = (cy - s / 2f).toInt()
-            val l = left.coerceAtLeast(0)
-            val t = top.coerceAtLeast(0)
-            val r = (left + s).coerceAtMost(fullBmp.width)
-            val b = (top + s).coerceAtMost(fullBmp.height)
-            val w = r - l; val h = b - t
-            if (w <= 10 || h <= 10) return null
-            return Bitmap.createBitmap(fullBmp, l, t, w, h)
-        }
-
-        val centers = listOf(
-            leftCheekCenter to "left_cheek",
-            rightCheekCenter to "right_cheek",
-            chinCenter to "chin",
-            foreheadCenter to "forehead"
-        )
-
-        val valid = mutableListOf<PerPatch>()
-        val agg = FloatArray(labels.size) { 0f }
-        var count = 0
-
-        for ((center, tag) in centers) {
-            val pBmp = cropSafeFromCenter(center.x, center.y, patchSize) ?: continue
-            val resized = Bitmap.createScaledBitmap(pBmp, inputW, inputH, true)
-
-            val inputBuffer: ByteBuffer = if (inputDataType == DataType.UINT8 || inputDataType == DataType.INT8) {
-                ByteBuffer.allocateDirect(inputW * inputH * inputChannels).order(ByteOrder.nativeOrder())
-            } else {
-                ByteBuffer.allocateDirect(4 * inputW * inputH * inputChannels).order(ByteOrder.nativeOrder())
-            }
-            inputBuffer.rewind()
-
-            if (inputDataType == DataType.UINT8 || inputDataType == DataType.INT8) {
-                for (y in 0 until inputH) {
-                    for (x in 0 until inputW) {
-                        val p = resized.getPixel(x, y)
-                        val r = ((p shr 16) and 0xFF) / 255.0f
-                        val g = ((p shr 8) and 0xFF) / 255.0f
-                        val b = (p and 0xFF) / 255.0f
-                        val rr = ((r / inputScale).roundToInt() + inputZeroPoint).coerceIn(0,255)
-                        val gg = ((g / inputScale).roundToInt() + inputZeroPoint).coerceIn(0,255)
-                        val bb = ((b / inputScale).roundToInt() + inputZeroPoint).coerceIn(0,255)
-                        inputBuffer.put(rr.toByte()); inputBuffer.put(gg.toByte()); inputBuffer.put(bb.toByte())
-                    }
-                }
-            } else {
-                for (y in 0 until inputH) {
-                    for (x in 0 until inputW) {
-                        val p = resized.getPixel(x, y)
-                        val r = ((p shr 16) and 0xFF) / 255.0f
-                        val g = ((p shr 8) and 0xFF) / 255.0f
-                        val b = (p and 0xFF) / 255.0f
-                        inputBuffer.putFloat(r); inputBuffer.putFloat(g); inputBuffer.putFloat(b)
-                    }
-                }
-            }
-            inputBuffer.rewind()
-
-            val raw = runModelGetOutputAsFloatArray(inputBuffer)
-            val maxv = raw.maxOrNull() ?: 0f
-            val exp = raw.map { Math.exp((it - maxv).toDouble()).toFloat() }
-            val sum = exp.sum()
-            val probs = if (sum > 0f) exp.map { it / sum } else exp.map { 0f }
-
-            for (i in probs.indices) agg[i] += probs[i]
-            count++
-
-            val topIdx = probs.indices.maxByOrNull { probs[it] } ?: 0
-            val topLabel = labels.getOrNull(topIdx) ?: "unknown"
-            val conf = probs[topIdx] * 100.0
-            valid.add(PerPatch(resized, topLabel, conf))
-        }
-
-        if (count > 0) {
-            for (i in agg.indices) agg[i] = agg[i] / count.toFloat()
-        }
-
-        return Pair(valid, agg)
-    }
-
-    data class PerPatch(val bmp: Bitmap, val label: String, val confidence: Double)
-
+    // This function preserves the original behavior:
+    // - creates heatmap overlay and saves overlayUri to faceHeatmapUriStr
+    // - returns human-readable summary label
     @RequiresApi(Build.VERSION_CODES.O)
     private fun runSkinOnBitmap(fullBmp: Bitmap): String {
-        val img = InputImage.fromBitmap(fullBmp, 0)
-        val opts = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-            .build()
-        val detector = FaceDetection.getClient(opts)
-        val faces = com.google.android.gms.tasks.Tasks.await(detector.process(img))
+        // use MLUtils.detectFacesBlocking for face detection (same as original logic)
+        val faces = MLUtils.detectFacesBlocking(fullBmp, accurate = false)
         if (faces.isEmpty()) return "No face detected."
         val face = faces[0]
         val bbox = face.boundingBox
@@ -466,7 +349,8 @@ class SkinReportActivity : AppCompatActivity() {
                 }
                 inputBuffer.rewind()
 
-                val raw = runModelGetOutputAsFloatArray(inputBuffer)
+                // call helper to run model and produce dequantized float outputs
+                val raw = MLUtils.runModelGetOutputAsFloatArray(interpreter, inputBuffer)
 
                 val maxv = raw.maxOrNull() ?: 0f
                 val exp = raw.map { Math.exp((it - maxv).toDouble()).toFloat() }
@@ -538,6 +422,7 @@ class SkinReportActivity : AppCompatActivity() {
             ivHeatmap.visibility = View.VISIBLE
         }
 
+        // after heatmap generation, also do final coarse label sampling to produce summary text
         val labelCounts = mutableMapOf<String, Int>()
         val sampleStride = max(1, inputW / 2)
         for (yy in 0 until faceBmp.height step sampleStride) {
@@ -570,7 +455,7 @@ class SkinReportActivity : AppCompatActivity() {
                 }
                 inputBuffer.rewind()
 
-                val raw = runModelGetOutputAsFloatArray(inputBuffer)
+                val raw = MLUtils.runModelGetOutputAsFloatArray(interpreter, inputBuffer)
 
                 val maxv = raw.maxOrNull() ?: 0f
                 val exp = raw.map { Math.exp((it - maxv).toDouble()).toFloat() }
@@ -608,39 +493,8 @@ class SkinReportActivity : AppCompatActivity() {
         return summaryText
     }
 
-    private fun runModelGetOutputAsFloatArray(inputBuffer: ByteBuffer): FloatArray {
-        val outTensor = interpreter.getOutputTensor(0)
-        val outShape = outTensor.shape()
-        val num = if (outShape.isNotEmpty()) outShape.last() else labels.size
-        val outType = outTensor.dataType()
-
-        if (outType == DataType.FLOAT32) {
-            val out = Array(1) { FloatArray(num) }
-            interpreter.run(inputBuffer, out)
-            return out[0]
-        }
-
-        if (outType == DataType.UINT8 || outType == DataType.INT8) {
-            val outBuf = ByteBuffer.allocateDirect(num).order(ByteOrder.nativeOrder())
-            outBuf.rewind()
-            interpreter.run(inputBuffer, outBuf)
-            outBuf.rewind()
-
-            val q = try { outTensor.quantizationParams() } catch (_: Exception) { return FloatArray(num) { 0f } }
-            val scale = q.scale
-            val zp = q.zeroPoint
-
-            val res = FloatArray(num)
-            for (i in 0 until num) {
-                val b = outBuf.get()
-                val stored: Int = if (outType == DataType.UINT8) (b.toInt() and 0xFF) else b.toInt()
-                res[i] = (stored - zp) * scale
-            }
-            return res
-        }
-
-        throw IllegalArgumentException("Unsupported output tensor data type: $outType")
-    }
+    // runModelGetOutputAsFloatArray is now provided by MLUtils - but keep a local wrapper if needed elsewhere.
+    // Label loading and model-loading helpers remain as before.
 
     private fun loadLabels(fileName: String): List<String> {
         return try {
@@ -649,13 +503,6 @@ class SkinReportActivity : AppCompatActivity() {
             val out = br.readLines().map { it.trim() }.filter { it.isNotEmpty() }
             br.close(); out
         } catch (e: Exception) { emptyList() }
-    }
-
-    private fun loadModel(modelName: String): Interpreter {
-        val afd = assets.openFd(modelName)
-        val stream = FileInputStream(afd.fileDescriptor)
-        val map: MappedByteBuffer = stream.channel.map(FileChannel.MapMode.READ_ONLY, afd.startOffset, afd.declaredLength)
-        return Interpreter(map)
     }
 
     inner class PatchAdapter(private val items: List<PatchResult>) : RecyclerView.Adapter<PatchAdapter.VH>() {
@@ -697,32 +544,6 @@ class SkinReportActivity : AppCompatActivity() {
         } catch (e: Exception) {
             e.printStackTrace(); null
         }
-    }
-
-    private fun decodeBitmap(u: Uri): Bitmap? {
-        try {
-            val firstStream = contentResolver.openInputStream(u) ?: return null
-            val options = android.graphics.BitmapFactory.Options().apply {
-                inMutable = true; inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
-            }
-            val decoded = android.graphics.BitmapFactory.decodeStream(firstStream, null, options)
-            firstStream.close()
-            if (decoded == null) return null
-            val exifStream = contentResolver.openInputStream(u)
-            val exif = androidx.exifinterface.media.ExifInterface(exifStream!!)
-            val orientation = exif.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL)
-            exifStream.close()
-            val matrix = android.graphics.Matrix()
-            when (orientation) {
-                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
-            }
-            if (matrix.isIdentity) return decoded
-            val oriented = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-            if (oriented != decoded) decoded.recycle()
-            return oriented
-        } catch (e: Exception) { e.printStackTrace(); return null }
     }
 
     private fun uploadImagesAndSaveReport(

@@ -18,9 +18,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.FaceDetection
-import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -34,6 +31,8 @@ import java.nio.channels.FileChannel
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import com.example.fyp.utils.ModelLoader
+import com.example.fyp.utils.MLUtils
 
 class MoodReportActivity : AppCompatActivity() {
 
@@ -95,7 +94,8 @@ class MoodReportActivity : AppCompatActivity() {
         btnBack.setOnClickListener { finish() }
 
         try {
-            interpreter = loadModel(MODEL_NAME)
+            // use ModelLoader helper to load interpreter
+            interpreter = ModelLoader.loadModelFromAssets(this, MODEL_NAME)
             val t = interpreter.getInputTensor(0)
             val shape = t.shape()
             if (shape.size >= 3) { inputH = shape[1]; inputW = shape[2] }
@@ -119,7 +119,9 @@ class MoodReportActivity : AppCompatActivity() {
         if (imageUriStr.isNullOrEmpty()) { finish(); return }
         val imageUri = Uri.parse(imageUriStr)
         previewUriStr = imageUri.toString()
-        val bmp = decodeBitmap(imageUri) ?: run {
+
+        // decode via MLUtils helper (EXIF-aware)
+        val bmp = MLUtils.decodeBitmap(contentResolver, imageUri) ?: run {
             Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show(); finish(); return
         }
         ivPreview.setImageBitmap(bmp)
@@ -132,10 +134,11 @@ class MoodReportActivity : AppCompatActivity() {
         dlg.window?.setBackgroundDrawableResource(android.R.color.transparent)
         dlg.show()
 
-        // run model + populate recommendations
+        // run model + populate recommendations using MLUtils helper (blocking call inside background thread)
         Thread {
             try {
-                val (topLabel, conf) = runMoodOnBitmapForTop(bmp)
+                // MLUtils provides blocking helper that preserves original behavior
+                val (topLabel, conf) = MLUtils.runMoodOnBitmapForTopBlocking(bmp, interpreter, inputW, inputH, inputChannels, inputDataType)
                 lastTopLabel = topLabel
                 lastConfidence = conf
                 runOnUiThread {
@@ -223,68 +226,6 @@ class MoodReportActivity : AppCompatActivity() {
         }
     }
 
-    // returns top label and confidence (0-100)
-    private fun runMoodOnBitmapForTop(fullBmp: Bitmap): Pair<String, Double> {
-        val img = InputImage.fromBitmap(fullBmp, 0)
-        val opts = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-            .build()
-        val detector = FaceDetection.getClient(opts)
-        val faces = com.google.android.gms.tasks.Tasks.await(detector.process(img))
-        if (faces.isEmpty()) return Pair("No face detected", 0.0)
-        val face = faces[0]
-        val bbox = face.boundingBox
-        val pad = (0.15 * max(bbox.width(), bbox.height())).toInt()
-        val left = max(0, bbox.left - pad)
-        val top = max(0, bbox.top - pad)
-        val right = min(fullBmp.width - 1, bbox.right + pad)
-        val bottom = min(fullBmp.height - 1, bbox.bottom + pad)
-        val faceRect = android.graphics.Rect(left, top, right, bottom)
-        val faceBmp = Bitmap.createBitmap(fullBmp, faceRect.left, faceRect.top, faceRect.width(), faceRect.height())
-
-        val resized = Bitmap.createScaledBitmap(faceBmp, inputW, inputH, true)
-        val inputBuffer = if (inputDataType == DataType.UINT8 || inputDataType == DataType.INT8) {
-            java.nio.ByteBuffer.allocateDirect(inputW * inputH * inputChannels).order(java.nio.ByteOrder.nativeOrder())
-        } else {
-            java.nio.ByteBuffer.allocateDirect(4 * inputW * inputH * inputChannels).order(java.nio.ByteOrder.nativeOrder())
-        }
-        inputBuffer.rewind()
-        for (y in 0 until inputH) {
-            for (x in 0 until inputW) {
-                val p = resized.getPixel(x, y)
-                val r = (p shr 16 and 0xFF)
-                val g = (p shr 8 and 0xFF)
-                val b = (p and 0xFF)
-                val gray = ((0.299f * r) + (0.587f * g) + (0.114f * b)).roundToInt().coerceIn(0, 255)
-                if (inputDataType == DataType.UINT8 || inputDataType == DataType.INT8) {
-                    inputBuffer.put((gray and 0xFF).toByte())
-                } else {
-                    inputBuffer.putFloat(gray.toFloat())
-                }
-            }
-        }
-        inputBuffer.rewind()
-
-        val output = Array(1) { FloatArray(labels.size) }
-        interpreter.run(inputBuffer, output)
-        val raw = output[0]
-        val maxv = raw.maxOrNull() ?: 0f
-        val exp = raw.map { Math.exp((it - maxv).toDouble()) }.map { it.toFloat() }
-        val sum = exp.sum()
-        val probs = exp.map { it / sum }
-        val topIdx = probs.indices.maxByOrNull { probs[it] } ?: 0
-        val topLabel = labels.getOrNull(topIdx) ?: "unknown"
-        val conf = (probs[topIdx] * 100.0)
-        return Pair(topLabel, conf)
-    }
-
-    private fun loadModel(modelName: String): Interpreter {
-        val afd = assets.openFd(modelName)
-        val stream = FileInputStream(afd.fileDescriptor)
-        val map: MappedByteBuffer = stream.channel.map(FileChannel.MapMode.READ_ONLY, afd.startOffset, afd.declaredLength)
-        return Interpreter(map)
-    }
-
     @RequiresApi(Build.VERSION_CODES.O)
     private fun saveBitmapToCache(bmp: Bitmap, name: String): Uri? {
         return try {
@@ -294,32 +235,6 @@ class MoodReportActivity : AppCompatActivity() {
         } catch (e: Exception) {
             e.printStackTrace(); null
         }
-    }
-
-    private fun decodeBitmap(u: Uri): Bitmap? {
-        try {
-            val firstStream = contentResolver.openInputStream(u) ?: return null
-            val options = android.graphics.BitmapFactory.Options().apply {
-                inMutable = true; inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
-            }
-            val decoded = android.graphics.BitmapFactory.decodeStream(firstStream, null, options)
-            firstStream.close()
-            if (decoded == null) return null
-            val exifStream = contentResolver.openInputStream(u)
-            val exif = androidx.exifinterface.media.ExifInterface(exifStream!!)
-            val orientation = exif.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL)
-            exifStream.close()
-            val matrix = android.graphics.Matrix()
-            when (orientation) {
-                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
-            }
-            if (matrix.isIdentity) return decoded
-            val oriented = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-            if (oriented != decoded) decoded.recycle()
-            return oriented
-        } catch (e: Exception) { e.printStackTrace(); return null }
     }
 
     private fun uploadImagesAndSaveReport(

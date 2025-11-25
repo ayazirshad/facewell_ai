@@ -6,7 +6,7 @@ import androidx.viewpager2.adapter.FragmentStateAdapter
 
 class MainPagerAdapter(fa: FragmentActivity) : FragmentStateAdapter(fa) {
 
-    enum class Page { HOME,  REPORTS,CLINICS, PROFILE }
+    enum class Page { HOME, REPORTS, CLINICS, PROFILE }
 
     override fun getItemCount() = Page.values().size
 

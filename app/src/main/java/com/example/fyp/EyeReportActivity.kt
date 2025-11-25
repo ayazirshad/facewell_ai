@@ -3,8 +3,6 @@ package com.example.fyp
 import android.app.Dialog
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -20,9 +18,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.FaceDetection
-import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -31,10 +26,10 @@ import com.google.firebase.storage.FirebaseStorage
 import org.tensorflow.lite.Interpreter
 import java.io.FileOutputStream
 import java.io.InputStream
-import java.nio.MappedByteBuffer
-import java.nio.channels.FileChannel
 import kotlin.math.max
 import java.util.Locale
+import com.example.fyp.utils.ModelLoader
+import com.example.fyp.utils.MLUtils
 
 class EyeReportActivity : AppCompatActivity() {
 
@@ -97,9 +92,9 @@ class EyeReportActivity : AppCompatActivity() {
         val tvTitle = findViewById<TextView>(R.id.tvReportTitle)
         tvTitle.text = "Eye Report"
 
-        // load model
+        // load model using your ModelLoader helper
         try {
-            interpreter = loadModel()
+            interpreter = ModelLoader.loadModelFromAssets(this, MODEL_NAME)
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Failed to load model", Toast.LENGTH_SHORT).show()
@@ -115,7 +110,9 @@ class EyeReportActivity : AppCompatActivity() {
         if (imageUriStr.isNullOrEmpty()) { finish(); return }
         val imageUri = Uri.parse(imageUriStr)
         previewUriStr = imageUri.toString()
-        val bmp = decodeBitmap(imageUri) ?: run {
+
+        // decode bitmap using MLUtils (keeps EXIF orientation handling)
+        val bmp = MLUtils.decodeBitmap(contentResolver, imageUri) ?: run {
             Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show(); finish(); return
         }
         ivPreview.setImageBitmap(bmp)
@@ -130,7 +127,11 @@ class EyeReportActivity : AppCompatActivity() {
 
         Thread {
             try {
-                val (leftBmp, rightBmp) = detectAndCropEyes(bmp)
+                // detect & crop eyes using MLUtils (blocking helper)
+                val eyeResult = MLUtils.detectAndCropEyesBlocking(bmp)
+                val leftBmp = eyeResult.leftCrop
+                val rightBmp = eyeResult.rightCrop
+
                 if (leftBmp == null || rightBmp == null) {
                     runOnUiThread {
                         dlg.dismiss()
@@ -139,8 +140,11 @@ class EyeReportActivity : AppCompatActivity() {
                     return@Thread
                 }
 
-                // run model and get label+confidence pairs
-                val (lPair, rPair, overall) = runEyeModel(leftBmp, rightBmp)
+                // run eye model via MLUtils helper (preserves original behavior & labels)
+                val res = MLUtils.runEyeModel(interpreter, leftBmp, rightBmp)
+                val lPair = res.first
+                val rPair = res.second
+                val overall = res.third
 
                 // save crops to temp cache for upload later
                 val leftUri = saveBitmapToCache(leftBmp, "left_eye_${System.currentTimeMillis()}.jpg")
@@ -249,86 +253,6 @@ class EyeReportActivity : AppCompatActivity() {
         }
     }
 
-    // detect & crop eyes using ML Kit (blocking call via Tasks.await() inside thread)
-    private fun detectAndCropEyes(bmp: Bitmap): Pair<Bitmap?, Bitmap?> {
-        val img = InputImage.fromBitmap(bmp, 0)
-        val opts = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
-            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
-            .build()
-        val detector = FaceDetection.getClient(opts)
-        val faces = com.google.android.gms.tasks.Tasks.await(detector.process(img))
-        if (faces.isEmpty()) return Pair(null, null)
-        val face = faces[0]
-        val leftLand = face.getLandmark(com.google.mlkit.vision.face.FaceLandmark.LEFT_EYE)?.position
-        val rightLand = face.getLandmark(com.google.mlkit.vision.face.FaceLandmark.RIGHT_EYE)?.position
-        if (leftLand == null || rightLand == null) return Pair(null, null)
-
-        val box = face.boundingBox
-        val w = (box.width() * 0.35).toInt().coerceAtLeast(1)
-        val h = (box.height() * 0.35).toInt().coerceAtLeast(1)
-
-        val leftRect = Rect(
-            (leftLand.x - w / 2).toInt().coerceAtLeast(0),
-            (leftLand.y - h / 2).toInt().coerceAtLeast(0),
-            (leftLand.x + w / 2).toInt().coerceAtMost(bmp.width),
-            (leftLand.y + h / 2).toInt().coerceAtMost(bmp.height)
-        )
-        val rightRect = Rect(
-            (rightLand.x - w / 2).toInt().coerceAtLeast(0),
-            (rightLand.y - h / 2).toInt().coerceAtLeast(0),
-            (rightLand.x + w / 2).toInt().coerceAtMost(bmp.width),
-            (rightLand.y + h / 2).toInt().coerceAtMost(bmp.height)
-        )
-
-        val leftW = max(1, leftRect.width()); val leftH = max(1, leftRect.height())
-        val rightW = max(1, rightRect.width()); val rightH = max(1, rightRect.height())
-
-        val leftBmp = Bitmap.createBitmap(bmp, leftRect.left, leftRect.top, leftW, leftH)
-        val rightBmp = Bitmap.createBitmap(bmp, rightRect.left, rightRect.top, rightW, rightH)
-        return Pair(leftBmp, rightBmp)
-    }
-
-    // run eye model — returns (label, confidence) for left & right and overall avg confidence
-    private fun runEyeModel(left: Bitmap, right: Bitmap): Triple<Pair<String, Float>, Pair<String, Float>, Float> {
-        fun prepareInput(b: Bitmap): Array<Array<Array<FloatArray>>> {
-            val resized = Bitmap.createScaledBitmap(b, 224, 224, true)
-            val input = Array(1) { Array(224) { Array(224) { FloatArray(3) } } }
-            for (y in 0 until 224) for (x in 0 until 224) {
-                val p = resized.getPixel(x, y)
-                input[0][y][x][0] = ((p shr 16 and 0xFF) / 255f)
-                input[0][y][x][1] = ((p shr 8 and 0xFF) / 255f)
-                input[0][y][x][2] = ((p and 0xFF) / 255f)
-            }
-            return input
-        }
-
-        val leftOut = Array(1) { FloatArray(5) }
-        val rightOut = Array(1) { FloatArray(5) }
-        interpreter.run(prepareInput(left), leftOut)
-        interpreter.run(prepareInput(right), rightOut)
-
-        val labels = listOf("blepharitis", "cataracts", "conjunctivitis", "darkcircles", "normal")
-
-        fun top(out: FloatArray): Pair<String, Float> {
-            var idx = 0
-            var mv = out[0]
-            for (i in out.indices) if (out[i] > mv) { mv = out[i]; idx = i }
-            return labels.getOrNull(idx)?.let { it to mv } ?: ("unknown" to mv)
-        }
-
-        val l = top(leftOut[0]); val r = top(rightOut[0])
-        val overall = (l.second + r.second) / 2f
-        return Triple(l, r, overall)
-    }
-
-    private fun loadModel(): Interpreter {
-        val afd = assets.openFd(MODEL_NAME)
-        val stream = java.io.FileInputStream(afd.fileDescriptor)
-        val map: MappedByteBuffer = stream.channel.map(FileChannel.MapMode.READ_ONLY, afd.startOffset, afd.declaredLength)
-        return Interpreter(map)
-    }
-
     @RequiresApi(Build.VERSION_CODES.O)
     private fun saveBitmapToCache(bmp: Bitmap, name: String): Uri? {
         return try {
@@ -336,55 +260,6 @@ class EyeReportActivity : AppCompatActivity() {
             FileOutputStream(f).use { out -> bmp.compress(Bitmap.CompressFormat.JPEG, 90, out) }
             Uri.fromFile(f)
         } catch (e: Exception) { e.printStackTrace(); null }
-    }
-
-    private fun decodeBitmap(u: Uri): Bitmap? {
-        var firstStream: InputStream? = null
-        try {
-            firstStream = contentResolver.openInputStream(u)
-            val options = BitmapFactory.Options().apply {
-                inMutable = true
-                inPreferredConfig = Bitmap.Config.ARGB_8888
-            }
-            val decoded = BitmapFactory.decodeStream(firstStream, null, options)
-            firstStream?.close()
-            if (decoded == null) return null
-
-            var exifStream: InputStream? = null
-            try {
-                exifStream = contentResolver.openInputStream(u)
-                val exif = androidx.exifinterface.media.ExifInterface(exifStream!!)
-                val orientation = exif.getAttributeInt(
-                    androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
-                )
-
-                val matrix = android.graphics.Matrix()
-                when (orientation) {
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL -> { }
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSPOSE -> { matrix.postRotate(90f); matrix.postScale(-1f, 1f) }
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSVERSE -> { matrix.postRotate(270f); matrix.postScale(-1f, 1f) }
-                    else -> { }
-                }
-
-                if (matrix.isIdentity) return decoded
-                val oriented = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-                if (oriented != decoded) decoded.recycle()
-                return oriented
-            } finally {
-                try { exifStream?.close() } catch (_: Exception) {}
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return null
-        } finally {
-            try { firstStream?.close() } catch (_: Exception) {}
-        }
     }
 
     // upload & save report (same as earlier)

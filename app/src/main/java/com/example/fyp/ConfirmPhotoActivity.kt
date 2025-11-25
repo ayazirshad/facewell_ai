@@ -125,9 +125,8 @@ class ConfirmPhotoActivity : AppCompatActivity() {
 
         btnFull.setOnClickListener {
             d.dismiss()
-            val i = Intent(this, EyeReportActivity::class.java)
-            i.putExtra(EyeReportActivity.EXTRA_IMAGE_URI, uri.toString())
-            i.putExtra("extra_full_scan", true)
+            val i = Intent(this, FullFaceReportActivity::class.java)
+            i.putExtra(FullFaceReportActivity.EXTRA_IMAGE_URI, uri.toString())
             startActivity(i)
             finish()
         }

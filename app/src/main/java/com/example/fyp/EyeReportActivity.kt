@@ -243,6 +243,7 @@ class EyeReportActivity : AppCompatActivity() {
             val i = Intent(this, MainActivity::class.java)
             i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             i.putExtra("open_tab", "clinics")
+            i.putExtra("category", "EYE")
             startActivity(i); finish()
         }
         btnGoHome.setOnClickListener {

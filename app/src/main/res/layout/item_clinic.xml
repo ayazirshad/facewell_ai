@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    app:strokeWidth="0dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="@color/teal_light">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <!-- Title row -->
+        <TextView
+            android:id="@+id/tvClinicName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Clinic name"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:textColor="@color/teal_mid" />
+
+        <!-- doctor / specialist -->
+        <TextView
+            android:id="@+id/tvClinicSpecialist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Dr. Someone • Dermatologist"
+            android:textSize="13sp"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/text_muted" />
+
+        <!-- phone (if available) -->
+        <TextView
+            android:id="@+id/tvClinicPhone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="+92 300 0000000"
+            android:textSize="13sp"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/text_muted"
+            android:visibility="gone"/>
+
+        <!-- meta row -->
+        <TextView
+            android:id="@+id/tvClinicMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2.5 km • ETA: 10 min"
+            android:layout_marginTop="8dp"
+            android:textSize="13sp"
+            android:textColor="@color/text_muted" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="10dp">
+
+            <ImageButton
+                android:id="@+id/btnCall"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_phone"
+                android:contentDescription="Call"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="@color/teal_mid"
+                android:visibility="gone"/>
+
+            <Button
+                android:id="@+id/btnOpenMaps"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="Open in Google Maps"
+                android:layout_marginStart="8dp"
+                android:textColor="@color/white"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"/>
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

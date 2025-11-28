@@ -3,7 +3,7 @@ package com.example.fyp.providers
 import com.example.fyp.models.Clinic
 
 enum class ClinicCategory {
-    EYE, SKIN, MOOD
+    EYE, SKIN, MOOD, ALL
 }
 
 interface ClinicProvider {

@@ -54,9 +54,4 @@
         app:itemTextAppearanceInactive="@style/BottomNavTextInactive"
         app:itemBackground="@android:color/transparent" />
 
-
-
-
-
-
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

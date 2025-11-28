@@ -5,91 +5,151 @@
     android:layout_height="match_parent"
     android:layout_margin="12dp"
     app:cardCornerRadius="14dp"
+    app:strokeWidth="0dp"
     app:cardElevation="6dp"
     app:cardBackgroundColor="@color/white">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="12dp">
-
-        <ImageButton
-            android:id="@+id/btnCloseReport"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_gravity="end"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_close"
-            app:tint="@color/text_muted"/>
-
-        <ImageView
-            android:id="@+id/ivPreviewLarge"
-            android:layout_width="match_parent"
-            android:layout_height="220dp"
-            android:scaleType="centerCrop"
-            android:adjustViewBounds="true"
-            android:layout_marginTop="8dp"/>
-
-        <TextView
-            android:id="@+id/tvDetailType"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Eye Report"
-            android:textStyle="bold"
-            android:textSize="16sp"
-            android:textColor="@color/teal_mid"
-            android:layout_marginTop="8dp"/>
-
-        <TextView
-            android:id="@+id/tvDetailDate"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="2025-11-18"
-            android:textSize="13sp"
-            android:textColor="@color/text_muted"
-            android:layout_marginTop="4dp"/>
-
-        <TextView
-            android:id="@+id/tvDetailSummary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Full report summary and details..."
-            android:textColor="@color/black"
-            android:layout_marginTop="8dp"/>
+        android:fillViewport="true">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="12dp">
+            android:orientation="vertical"
+            android:padding="16dp">
 
-            <ImageView
-                android:id="@+id/ivLeftReport"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="120dp"
-                android:scaleType="centerCrop"
-                android:adjustViewBounds="true"
-                android:layout_marginEnd="6dp"/>
+            <!-- Header: teal band with app name + small logo text -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:orientation="horizontal"
+                android:background="@color/teal_mid"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:gravity="center_vertical">
 
-            <ImageView
-                android:id="@+id/ivRightReport"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="120dp"
-                android:scaleType="centerCrop"
-                android:adjustViewBounds="true"
-                android:layout_marginStart="6dp"/>
+                <TextView
+                    android:id="@+id/tvAppName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FaceWell AI Suite"
+                    android:textColor="@color/white"
+                    android:textStyle="bold"
+                    android:textSize="18sp" />
 
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/tvAppTag"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Medical AI"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- Close button aligned to right -->
+            <ImageButton
+                android:id="@+id/btnCloseReport"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="end"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_close"
+                app:tint="@color/text_muted"
+                android:contentDescription="Close" />
+
+            <!-- Top info: scan type + date -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/tvDetailType"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Eye Report"
+                    android:textColor="@color/teal_mid"
+                    android:textStyle="bold"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/tvDetailDate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="2025-11-18 12:00"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_muted" />
+            </LinearLayout>
+
+            <!-- Top-level summary (prominent) -->
+            <TextView
+                android:id="@+id/tvDetailSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Summary — detected issue details shown here..."
+                android:textColor="@color/black"
+                android:textSize="14sp"
+                android:layout_marginTop="10dp"
+                android:lineSpacingExtra="4dp" />
+
+            <!-- Divider -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="12dp"
+                android:background="@color/text_muted" />
+
+            <!-- Dynamic sections container -->
+            <LinearLayout
+                android:id="@+id/llSections"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="12dp" />
+
+            <!-- Footer / metadata -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="18dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/tvDetailFooter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Accuracy: 82%"
+                    android:textColor="@color/text_muted"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/tvSource"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Source: Camera"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp" />
+            </LinearLayout>
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/tvDetailFooter"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Confidence: 82%"
-            android:textColor="@color/text_muted"
-            android:layout_marginTop="12dp"/>
-    </LinearLayout>
+    </ScrollView>
 </com.google.android.material.card.MaterialCardView>

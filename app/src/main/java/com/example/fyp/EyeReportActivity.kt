@@ -6,6 +6,9 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageButton
@@ -17,7 +20,10 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.fyp.models.Report
+import com.example.fyp.models.ScanResult
 import com.google.android.material.button.MaterialButton
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -25,8 +31,8 @@ import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import org.tensorflow.lite.Interpreter
 import java.io.FileOutputStream
-import java.io.InputStream
 import kotlin.math.max
+import kotlin.math.roundToInt
 import java.util.Locale
 import com.example.fyp.utils.ModelLoader
 import com.example.fyp.utils.MLUtils
@@ -36,6 +42,7 @@ class EyeReportActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_IMAGE_URI = "extra_image_uri"
         const val MODEL_NAME = "eye_disease_model.tflite"
+        private const val TAG = "EyeReportActivity"
     }
 
     private lateinit var ivPreview: ImageView
@@ -56,7 +63,6 @@ class EyeReportActivity : AppCompatActivity() {
 
     private lateinit var interpreter: Interpreter
 
-    // firebase
     private val auth by lazy { FirebaseAuth.getInstance() }
     private val db by lazy { FirebaseFirestore.getInstance() }
     private val storage by lazy { FirebaseStorage.getInstance() }
@@ -65,12 +71,18 @@ class EyeReportActivity : AppCompatActivity() {
     private var leftCropUriStr: String? = null
     private var rightCropUriStr: String? = null
 
+    private var lastOverallAccuracy: Double = 0.0
+    private var lastLeftLabelStr: String = ""
+    private var lastRightLabelStr: String = ""
+    private var lastSummaryStr: String = ""
+    private var lastRecommendations: List<String> = emptyList()
+    private var lastProductsList: List<RecProduct> = emptyList()
+
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_eye_report)
 
-        // bind views
         ivPreview = findViewById(R.id.ivPreview)
         ivLeftCrop = findViewById(R.id.ivLeftCrop)
         ivRightCrop = findViewById(R.id.ivRightCrop)
@@ -92,7 +104,6 @@ class EyeReportActivity : AppCompatActivity() {
         val tvTitle = findViewById<TextView>(R.id.tvReportTitle)
         tvTitle.text = "Eye Report"
 
-        // load model using your ModelLoader helper
         try {
             interpreter = ModelLoader.loadModelFromAssets(this, MODEL_NAME)
         } catch (e: Exception) {
@@ -102,22 +113,18 @@ class EyeReportActivity : AppCompatActivity() {
             return
         }
 
-        // load recommendations
         RecommendationProvider.loadFromAssets(this, "eye_recommendations.json")
 
-        // load image
         val imageUriStr = intent.getStringExtra(EXTRA_IMAGE_URI) ?: intent.getStringExtra("extra_image_uri")
         if (imageUriStr.isNullOrEmpty()) { finish(); return }
         val imageUri = Uri.parse(imageUriStr)
         previewUriStr = imageUri.toString()
 
-        // decode bitmap using MLUtils (keeps EXIF orientation handling)
         val bmp = MLUtils.decodeBitmap(contentResolver, imageUri) ?: run {
             Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show(); finish(); return
         }
         ivPreview.setImageBitmap(bmp)
 
-        // show dialog_simple_loader (same as ConfirmPhotoActivity)
         val dlg = Dialog(this)
         val loaderView = LayoutInflater.from(this).inflate(R.layout.dialog_simple_loader, null)
         dlg.setContentView(loaderView)
@@ -127,7 +134,6 @@ class EyeReportActivity : AppCompatActivity() {
 
         Thread {
             try {
-                // detect & crop eyes using MLUtils (blocking helper)
                 val eyeResult = MLUtils.detectAndCropEyesBlocking(bmp)
                 val leftBmp = eyeResult.leftCrop
                 val rightBmp = eyeResult.rightCrop
@@ -140,37 +146,30 @@ class EyeReportActivity : AppCompatActivity() {
                     return@Thread
                 }
 
-                // run eye model via MLUtils helper (preserves original behavior & labels)
                 val res = MLUtils.runEyeModel(interpreter, leftBmp, rightBmp)
                 val lPair = res.first
                 val rPair = res.second
                 val overall = res.third
 
-                // save crops to temp cache for upload later
                 val leftUri = saveBitmapToCache(leftBmp, "left_eye_${System.currentTimeMillis()}.jpg")
                 val rightUri = saveBitmapToCache(rightBmp, "right_eye_${System.currentTimeMillis()}.jpg")
                 leftCropUriStr = leftUri?.toString(); rightCropUriStr = rightUri?.toString()
 
-                // update UI (labels, confidences, crops)
                 runOnUiThread {
                     dlg.dismiss()
 
                     ivLeftCrop.setImageBitmap(leftBmp)
                     ivRightCrop.setImageBitmap(rightBmp)
 
-                    // Show per-eye label + accuracy
                     val leftText = "${lPair.first} (${(lPair.second * 100).toInt()}%)"
                     val rightText = "${rPair.first} (${(rPair.second * 100).toInt()}%)"
                     tvLeftLabel.text = leftText
                     tvRightLabel.text = rightText
 
-                    // overall accuracy (average)
                     tvAccuracy.text = "Accuracy Level: ${(overall * 100).toInt()}%"
 
-                    // summary
                     tvSummaryText.text = "Left: $leftText • Right: $rightText"
 
-                    // load recommendation for top finding; populate tips & products
                     val topKey = if (lPair.second >= rPair.second) lPair.first else rPair.first
                     val rec = RecommendationProvider.getEyeRecommendation(topKey.replace("\\s".toRegex(), "").lowercase(Locale.getDefault()))
                     if (rec != null) {
@@ -184,7 +183,6 @@ class EyeReportActivity : AppCompatActivity() {
                             llTips.addView(tv)
                         }
 
-                        // PRODUCTS: show horizontally as grid(2)
                         if (rec.products.isNotEmpty()) {
                             tvProductsTitle.visibility = View.VISIBLE
                             rvProducts.visibility = View.VISIBLE
@@ -193,16 +191,27 @@ class EyeReportActivity : AppCompatActivity() {
                                 showProductDialog(product)
                             }
                             rvProducts.adapter = adapter
+                            lastProductsList = rec.products
                         } else {
                             tvProductsTitle.visibility = View.GONE
                             rvProducts.visibility = View.GONE
+                            lastProductsList = emptyList()
                         }
+
+                        lastRecommendations = rec.tips
                     } else {
                         tvRecSummary.text = "No recommendation available."
                         llTips.removeAllViews()
                         tvProductsTitle.visibility = View.GONE
                         rvProducts.visibility = View.GONE
+                        lastProductsList = emptyList()
+                        lastRecommendations = emptyList()
                     }
+
+                    lastOverallAccuracy = overall.toDouble()
+                    lastLeftLabelStr = leftText
+                    lastRightLabelStr = rightText
+                    lastSummaryStr = tvSummaryText.text.toString()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -213,25 +222,45 @@ class EyeReportActivity : AppCompatActivity() {
             }
         }.start()
 
-        // Save report (uploads preview + left + right images and writes Firestore doc)
         btnSave.setOnClickListener {
             val uid = auth.currentUser?.uid
             if (uid == null) {
                 Toast.makeText(this, "Not authenticated. Please login.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+
+            // Check connectivity first
+            if (!isOnline()) {
+                Toast.makeText(this, "No internet connection. Please connect and try again.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
             btnSave.isEnabled = false; btnSave.text = "Saving..."
-            uploadImagesAndSaveReport(uid, previewUriStr, leftCropUriStr, rightCropUriStr, "eye",
-                summary = tvSummaryText.text.toString(), leftLabel = tvLeftLabel.text.toString(),
-                rightLabel = tvRightLabel.text.toString()) { success ->
+            createReportDocAndLinkToUser(uid, previewUriStr, "eye",
+                summary = lastSummaryStr,
+                accuracy = lastOverallAccuracy,
+                recommendations = lastRecommendations) { success ->
                 runOnUiThread {
                     btnSave.isEnabled = true; btnSave.text = "Save Report"
                     if (success) {
                         Toast.makeText(this, "Report saved", Toast.LENGTH_SHORT).show()
-                        val i = Intent(this, MainActivity::class.java)
-                        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        i.putExtra("open_tab", "home")
-                        startActivity(i); finish()
+                        val userDoc = db.collection("users").document(uid)
+                        userDoc.get().addOnSuccessListener { snap ->
+                            val userMap = snap.data ?: emptyMap<String, Any>()
+                            val i = Intent(this, MainActivity::class.java)
+                            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            i.putExtra("open_tab", "home")
+                            val serializableMap = HashMap(userMap)
+                            i.putExtra("updated_user_map", serializableMap)
+                            startActivity(i)
+                            finish()
+                        }.addOnFailureListener {
+                            val i = Intent(this, MainActivity::class.java)
+                            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            i.putExtra("open_tab", "home")
+                            startActivity(i)
+                            finish()
+                        }
                     } else {
                         Toast.makeText(this, "Failed to save report", Toast.LENGTH_SHORT).show()
                     }
@@ -254,6 +283,19 @@ class EyeReportActivity : AppCompatActivity() {
         }
     }
 
+    // simple connectivity check
+    private fun isOnline(): Boolean {
+        try {
+            val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val nw = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(nw) ?: return false
+            return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        }
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     private fun saveBitmapToCache(bmp: Bitmap, name: String): Uri? {
         return try {
@@ -263,79 +305,98 @@ class EyeReportActivity : AppCompatActivity() {
         } catch (e: Exception) { e.printStackTrace(); null }
     }
 
-    // upload & save report (same as earlier)
-    private fun uploadImagesAndSaveReport(
+    private fun resizeKeepRatio(bitmap: Bitmap, maxLongSide: Int): Bitmap {
+        val w = bitmap.width
+        val h = bitmap.height
+        val longSide = maxOf(w, h)
+        if (longSide <= maxLongSide) return bitmap
+        val scale = maxLongSide.toFloat() / longSide.toFloat()
+        val newW = (w * scale).roundToInt()
+        val newH = (h * scale).roundToInt()
+        return Bitmap.createScaledBitmap(bitmap, newW, newH, true)
+    }
+
+    private fun createReportDocAndLinkToUser(
         uid: String,
         previewUriStr: String?,
-        leftUriStr: String?,
-        rightUriStr: String?,
         type: String,
         summary: String,
-        leftLabel: String,
-        rightLabel: String,
+        accuracy: Double,
+        recommendations: List<String>,
         onComplete: (Boolean) -> Unit
     ) {
-        val previewUri = previewUriStr?.let { Uri.parse(it) }
-        val leftUri = leftUriStr?.let { Uri.parse(it) }
-        val rightUri = rightUriStr?.let { Uri.parse(it) }
+        try {
+            // create report doc in top-level "reports" collection
+            val reportsCol = db.collection("reports")
+            val newDocRef = reportsCol.document() // auto-id
+            val reportId = newDocRef.id
 
-        val storageRef = storage.reference.child("reports").child(uid)
-        val uploaded = mutableMapOf<String, String>()
+            val eyeScan = hashMapOf(
+                "summary" to summary,
+                "accuracy" to accuracy,
+                "recommendations" to recommendations
+            )
 
-        fun uploadOne(uri: Uri?, name: String, cb: (String?) -> Unit) {
-            if (uri == null) { cb(null); return }
-            try {
-                val ref = storageRef.child("$name.jpg")
-                val stream = contentResolver.openInputStream(uri)
-                if (stream == null) { cb(null); return }
-                val uploadTask = ref.putStream(stream)
-                uploadTask.continueWithTask { task ->
-                    if (!task.isSuccessful) throw task.exception ?: Exception("upload failed")
-                    ref.downloadUrl
-                }.addOnCompleteListener { t ->
-                    if (t.isSuccessful) cb(t.result.toString()) else cb(null)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace(); cb(null)
-            }
-        }
+            val reportPayload = hashMapOf<String, Any?>(
+                "reportId" to reportId,
+                "userId" to uid,
+                "type" to type,
+                "summary" to summary,
+                "imageUrl" to null,
+                "imageWidth" to null,
+                "imageHeight" to null,
+                "accuracy" to accuracy,
+                "recommendations" to recommendations,
+                "eye_scan" to eyeScan,
+                "skin_scan" to null,
+                "mood_scan" to null,
+                "tags" to listOf<String>(),
+                "source" to "camera",
+                "meta" to hashMapOf("orientation" to "unknown"),
+                "createdAt" to Timestamp.now()
+            )
 
-        uploadOne(previewUri, "preview_${System.currentTimeMillis()}") { pUrl ->
-            uploaded["preview"] = pUrl ?: ""
-            uploadOne(leftUri, "left_${System.currentTimeMillis()}") { lUrl ->
-                uploaded["left"] = lUrl ?: ""
-                uploadOne(rightUri, "right_${System.currentTimeMillis()}") { rUrl ->
-                    uploaded["right"] = rUrl ?: ""
-                    val report = hashMapOf<String, Any>(
-                        "type" to type,
-                        "summary" to summary,
-                        "leftLabel" to leftLabel,
-                        "rightLabel" to rightLabel,
-                        "confidence" to 0.0,
-                        "previewUrl" to (uploaded["preview"] ?: ""),
-                        "leftUrl" to (uploaded["left"] ?: ""),
-                        "rightUrl" to (uploaded["right"] ?: ""),
-                        "createdAt" to System.currentTimeMillis()
-                    )
+            newDocRef.set(reportPayload)
+                .addOnSuccessListener {
+                    // push only the reportId into user's reports array with retry
                     val userDoc = db.collection("users").document(uid)
-                    userDoc.update("reports", FieldValue.arrayUnion(report as Any))
-                        .addOnSuccessListener { onComplete(true) }
-                        .addOnFailureListener {
-                            val payload = hashMapOf("reports" to listOf(report))
-                            userDoc.set(payload, SetOptions.merge())
-                                .addOnSuccessListener { onComplete(true) }
-                                .addOnFailureListener { e -> e.printStackTrace(); onComplete(false) }
-                        }
+                    updateUserReportsWithRetry(userDoc, reportId, onComplete)
                 }
-            }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Failed to create report doc", e)
+                    onComplete(false)
+                }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            onComplete(false)
         }
     }
 
-    // helper to show product dialog (re-use from ReportActivity if available)
+    private fun updateUserReportsWithRetry(userDocRef: com.google.firebase.firestore.DocumentReference, reportId: String, onComplete: (Boolean) -> Unit, attempt: Int = 0) {
+        userDocRef.update("reports", FieldValue.arrayUnion(reportId))
+            .addOnSuccessListener {
+                onComplete(true)
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "update reports failed (attempt=$attempt): ${e.message}", e)
+                if (attempt < 1) {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        updateUserReportsWithRetry(userDocRef, reportId, onComplete, attempt + 1)
+                    }, 800)
+                } else {
+                    val payload = hashMapOf("reports" to listOf(reportId))
+                    userDocRef.set(payload, SetOptions.merge())
+                        .addOnSuccessListener { onComplete(true) }
+                        .addOnFailureListener { ex -> ex.printStackTrace(); onComplete(false) }
+                }
+            }
+    }
+
     private fun showProductDialog(p: RecProduct) {
         val d = android.app.Dialog(this)
         val v = layoutInflater.inflate(R.layout.dialog_product_detail, null)
         d.setContentView(v)
+        d.setCancelable(true)
 
         val iv = v.findViewById<ImageView>(R.id.ivDlgImage)
         val tvTitle = v.findViewById<TextView>(R.id.tvDlgTitle)
@@ -343,17 +404,32 @@ class EyeReportActivity : AppCompatActivity() {
         val btnClose = v.findViewById<ImageButton>(R.id.btnCloseDialog)
 
         tvTitle.text = p.name
-        tvDesc.text = p.short
+        tvDesc.text = p.short ?: ""
+
+        // load image (local drawable name or remote)
         if (!p.localImage.isNullOrEmpty()) {
             val resId = resources.getIdentifier(p.localImage, "drawable", packageName)
             if (resId != 0) iv.setImageResource(resId) else iv.setImageResource(android.R.color.transparent)
         } else if (!p.imageUrl.isNullOrEmpty()) {
-            try { iv.setImageURI(Uri.parse(p.imageUrl)) } catch (_: Exception) { iv.setImageResource(android.R.color.transparent) }
-        } else iv.setImageResource(android.R.color.transparent)
+            // prefer Glide/Picasso if available. Fallback: setImageURI (may be slow)
+            try {
+                iv.setImageURI(Uri.parse(p.imageUrl))
+            } catch (_: Exception) {
+                iv.setImageResource(android.R.color.transparent)
+            }
+        } else {
+            iv.setImageResource(android.R.color.transparent)
+        }
 
         btnClose.setOnClickListener { d.dismiss() }
 
-        d.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        // Make dialog window width ~90% of screen and height wrap content
         d.show()
+        val window = d.window
+        window?.setBackgroundDrawableResource(android.R.color.transparent)
+        val params = window?.attributes
+        val w = (resources.displayMetrics.widthPixels * 0.90).toInt()
+        window?.setLayout(w, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
     }
+
 }

@@ -20,22 +20,24 @@ class OsmClinicProvider : ClinicProvider {
     private val client = OkHttpClient()
     private val gson = Gson()
 
-    override fun searchClinics(lat: Double, lng: Double, radiusMeters: Int, category: ClinicCategory, cb: (List<Clinic>?) -> Unit) {
+    override fun searchClinics(lat: Double, lng: Double, radiusMeters: Int, category: com.example.fyp.providers.ClinicCategory, cb: (List<Clinic>?) -> Unit) {
         // Build category-specific extra *clauses* (SEPARATE clauses — NOT appended to existing ones)
         val categoryClauses = when (category) {
-            ClinicCategory.EYE -> listOf(
+            com.example.fyp.providers.ClinicCategory.EYE -> listOf(
                 // look for healthcare tags mentioning optician/ophthalmology/eye
                 "node(around:$radiusMeters,$lat,$lng)[healthcare~\"optician|ophthalmology|eye|ophthalmologist\"];",
                 "way(around:$radiusMeters,$lat,$lng)[healthcare~\"optician|ophthalmology|eye|ophthalmologist\"];"
             )
-            ClinicCategory.SKIN -> listOf(
+            com.example.fyp.providers.ClinicCategory.SKIN -> listOf(
                 "node(around:$radiusMeters,$lat,$lng)[healthcare~\"dermatology|skin|dermatologist\"];",
                 "way(around:$radiusMeters,$lat,$lng)[healthcare~\"dermatology|skin|dermatologist\"];"
             )
-            ClinicCategory.MOOD -> listOf(
+            com.example.fyp.providers.ClinicCategory.MOOD -> listOf(
                 "node(around:$radiusMeters,$lat,$lng)[healthcare~\"psychiatrist|psychology|mental|psychologist\"];",
                 "way(around:$radiusMeters,$lat,$lng)[healthcare~\"psychiatrist|psychology|mental|psychologist\"];"
             )
+            // support ALL (enum must include ALL) — no extra clauses, rely on coreClauses
+            com.example.fyp.providers.ClinicCategory.ALL -> emptyList()
         }
 
         // Core clauses (mirrors your browser-working query)

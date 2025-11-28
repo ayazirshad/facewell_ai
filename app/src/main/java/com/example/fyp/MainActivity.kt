@@ -6,10 +6,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.viewpager2.widget.ViewPager2
 import com.example.fyp.camera.CameraCaptureActivity
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
 
@@ -37,6 +39,19 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
             val i = Intent(this, ConfirmPhotoActivity::class.java)
             i.putExtra(ConfirmPhotoActivity.EXTRA_IMAGE_URI, uri.toString())
             startActivity(i)
+        }
+    }
+
+    // Auth listener for debugging unexpected sign-outs
+    private val firebaseAuth by lazy { FirebaseAuth.getInstance() }
+    private val authStateListener = FirebaseAuth.AuthStateListener { auth ->
+        val user = auth.currentUser
+        if (user == null) {
+            android.util.Log.w("MainActivity", "AuthStateListener: currentUser is null (signed out).")
+            // Do not force navigation here — just log. If you want auto-redirect to login, uncomment below:
+            // startActivity(Intent(this, LoginActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK) })
+        } else {
+            android.util.Log.d("MainActivity", "AuthStateListener: user present uid=${user.uid}")
         }
     }
 
@@ -95,23 +110,39 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
         overlayContainer.visibility = android.view.View.GONE
     }
 
+    override fun onStart() {
+        super.onStart()
+        try { firebaseAuth.addAuthStateListener(authStateListener) } catch (_: Exception) {}
+    }
+
+    override fun onStop() {
+        super.onStop()
+        try { firebaseAuth.removeAuthStateListener(authStateListener) } catch (_: Exception) {}
+    }
+
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         intent?.let { handleOpenTabIntent(it) }
     }
 
     private fun handleOpenTabIntent(intent: Intent) {
+        // If EyeReportActivity (or others) passed an updated user map, broadcast it locally
+        val updatedUserMap = intent.getSerializableExtra("updated_user_map") as? HashMap<*, *>
+        if (updatedUserMap != null) {
+            val b = Intent("com.example.fyp.USER_UPDATED")
+            b.putExtra("updated_user_map", updatedUserMap)
+            LocalBroadcastManager.getInstance(this).sendBroadcast(b)
+        }
+
         val open = intent.getStringExtra("open_tab") ?: return
         when (open) {
             "home" -> {
-                // select clinics tab
                 bottomNav.selectedItemId = R.id.nav_home
                 val page = idToPage[R.id.nav_home] ?: MainPagerAdapter.Page.HOME
                 val index = MainPagerAdapter.Page.values().indexOf(page)
                 viewPager.setCurrentItem(index, false)
             }
             "clinics" -> {
-                // select clinics tab
                 bottomNav.selectedItemId = R.id.nav_clinics
                 val page = idToPage[R.id.nav_clinics] ?: MainPagerAdapter.Page.CLINICS
                 val index = MainPagerAdapter.Page.values().indexOf(page)
@@ -129,7 +160,6 @@ class MainActivity : AppCompatActivity(), ScanChooserSheet.Callbacks {
                 val index = MainPagerAdapter.Page.values().indexOf(page)
                 viewPager.setCurrentItem(index, false)
             }
-
         }
     }
 

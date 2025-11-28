@@ -15,7 +15,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 class SplashActivity : AppCompatActivity() {
 
     private val phase1Ms = 600L   // white
-    private val phase2Ms = 1200L  // logo showing
+    private val phase2Ms = 1500L  // logo showing
     private val phase3Ms = 600L   // white again
 
     private lateinit var auth: FirebaseAuth
@@ -85,28 +85,38 @@ class SplashActivity : AppCompatActivity() {
             return
         }
 
-        // Logged in: fetch user document to read stage
-        val uid = user.uid
-        db.collection("users").document(uid)
-            .get()
-            .addOnSuccessListener { doc ->
-                if (routed) return@addOnSuccessListener
-                val stage = if (doc.exists()) (doc.getLong("stage") ?: 0L).toInt() else 0
-                routingIntent = when {
-                    stage <= 0 -> Intent(this, CreateProfileActivity::class.java)
-                    stage == 1 -> Intent(this, SelectGenderActivity::class.java).apply {
-                        putExtra("firstName", doc.getString("firstName") ?: "")
+        // Validate token quickly before calling Firestore to reduce invalid token cases.
+        user.getIdToken(false)
+            .addOnSuccessListener {
+                // token ok -> proceed to check user doc
+                val uid = user.uid
+                db.collection("users").document(uid)
+                    .get()
+                    .addOnSuccessListener { doc ->
+                        if (routed) return@addOnSuccessListener
+                        val stage = if (doc.exists()) (doc.getLong("stage") ?: 0L).toInt() else 0
+                        routingIntent = when {
+                            stage <= 0 -> Intent(this, CreateProfileActivity::class.java)
+                            stage == 1 -> Intent(this, SelectGenderActivity::class.java).apply {
+                                putExtra("firstName", doc.getString("firstName") ?: "")
+                            }
+                            else -> Intent(this, MainActivity::class.java)
+                        }
+                        authCheckDone = true
+                        if (splashDone && !routed) {
+                            startAndFinish(routingIntent!!)
+                        }
                     }
-                    else -> Intent(this, MainActivity::class.java)
-                }
-                authCheckDone = true
-                if (splashDone && !routed) {
-                    startAndFinish(routingIntent!!)
-                }
+                    .addOnFailureListener {
+                        // Firestore read failed — fallback to Login
+                        if (routed) return@addOnFailureListener
+                        routingIntent = Intent(this, LoginActivity::class.java)
+                        authCheckDone = true
+                        if (splashDone && !routed) startAndFinish(routingIntent!!)
+                    }
             }
             .addOnFailureListener {
-                // Firestore read failed — fallback to Login
-                if (routed) return@addOnFailureListener
+                // Token fetch failed -> treat as not authenticated and route to Login
                 routingIntent = Intent(this, LoginActivity::class.java)
                 authCheckDone = true
                 if (splashDone && !routed) startAndFinish(routingIntent!!)

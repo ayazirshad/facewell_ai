@@ -6,6 +6,9 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -19,6 +22,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -29,6 +33,7 @@ import com.example.fyp.utils.MLUtils
 import org.tensorflow.lite.Interpreter
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.io.FileOutputStream
 import kotlin.math.max
 import kotlin.math.min
 
@@ -40,6 +45,7 @@ class FullFaceReportActivity : AppCompatActivity() {
         const val SKIN_MODEL = "skin_full_int8.tflite"
         const val SKIN_LABELS = "labels.txt"
         const val MOOD_MODEL = "mood_detection_model.tflite"
+        private const val TAG = "FullFaceReportActivity"
     }
 
     // UI
@@ -77,6 +83,21 @@ class FullFaceReportActivity : AppCompatActivity() {
 
     private var previewUriStr: String? = null
     private val skinPatchResults = mutableListOf<MLUtils.PatchResult>()
+
+    // last analysis values (used when saving)
+    private var lastSkinSummary: String = ""
+    private var lastSkinAccuracy: Double = 0.0
+    private var lastSkinRecommendations: List<String> = emptyList()
+
+    private var lastEyeSummary: String = ""
+    private var lastEyeAccuracy: Double = 0.0
+    private var lastEyeRecommendations: List<String> = emptyList()
+    private var lastEyeLeftUrl: String? = null
+    private var lastEyeRightUrl: String? = null
+
+    private var lastMoodSummary: String = ""
+    private var lastMoodAccuracy: Double = 0.0
+    private var lastMoodRecommendations: List<String> = emptyList()
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -162,6 +183,19 @@ class FullFaceReportActivity : AppCompatActivity() {
 
                     val rec = RecommendationProvider.getEyeRecommendation(topKey.replace("\\s".toRegex(), "").lowercase())
 
+                    // store last eye info for saving
+                    lastEyeSummary = "Left: $leftText • Right: $rightText"
+                    lastEyeAccuracy = overall.toDouble()
+                    lastEyeRecommendations = rec?.tips ?: emptyList()
+
+                    // attempt to save left/right crops to cache URIs so report can reference them (non-blocking)
+                    lastEyeLeftUrl = try {
+                        saveBitmapToCache(eyeRes.leftCrop!!, "left_eye_${System.currentTimeMillis()}")?.toString()
+                    } catch (e: Exception) { null }
+                    lastEyeRightUrl = try {
+                        saveBitmapToCache(eyeRes.rightCrop!!, "right_eye_${System.currentTimeMillis()}")?.toString()
+                    } catch (e: Exception) { null }
+
                     runOnUiThread {
                         tvEyeLabel.text = topKey.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
                         tvEyeAcc.text = "Accuracy Level: ${String.format("%.1f", eyeAcc)}%"
@@ -179,6 +213,9 @@ class FullFaceReportActivity : AppCompatActivity() {
                     runOnUiThread {
                         tvEyeLabel.text = "Not detected"
                         tvEyeAcc.text = "Accuracy Level: 0.0%"
+                        lastEyeSummary = "Not detected"
+                        lastEyeAccuracy = 0.0
+                        lastEyeRecommendations = emptyList()
                     }
                 }
 
@@ -228,6 +265,11 @@ class FullFaceReportActivity : AppCompatActivity() {
                 val skinRecKey = finalLabel.replace("\\s".toRegex(), "").lowercase()
                 val skinRec = RecommendationProvider.getSkinRecommendation(skinRecKey)
 
+                // store last skin info for saving
+                lastSkinSummary = displaySkinSummary
+                lastSkinAccuracy = finalProb.toDouble()
+                lastSkinRecommendations = skinRec?.tips ?: emptyList()
+
                 runOnUiThread {
                     tvSkinLabel.text = displaySkinSummary
                     tvSkinAcc.text = "Accuracy Level: ${String.format("%.1f", finalProb * 100.0)}%"
@@ -251,13 +293,19 @@ class FullFaceReportActivity : AppCompatActivity() {
                 val mChannels = if (mShape.size >= 4) mShape[3] else 1
                 val (mTop, mConf) = MLUtils.runMoodOnBitmapForTopBlocking(bmp, moodInterpreter, mW, mH, mChannels, moodInputT.dataType())
 
+                val moodRec = RecommendationProvider.getMoodRecommendation(mTop.replace("\\s".toRegex(), "").lowercase())
+
+                // store last mood info for saving
+                lastMoodSummary = mTop
+                lastMoodAccuracy = mConf
+                lastMoodRecommendations = moodRec?.tips ?: emptyList()
+
                 runOnUiThread {
                     tvMoodLabel.text = mTop.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
                     tvMoodAcc.text = "Accuracy Level: ${String.format("%.1f", mConf)}%"
-                    val rec = RecommendationProvider.getMoodRecommendation(mTop.replace("\\s".toRegex(), "").lowercase())
-                    tvMoodRecSummary.text = rec?.summary ?: "Follow general mood care steps."
+                    tvMoodRecSummary.text = moodRec?.summary ?: "Follow general mood care steps."
                     llMoodTipsCard.removeAllViews()
-                    rec?.tips?.forEach { tip ->
+                    moodRec?.tips?.forEach { tip ->
                         val tv = layoutInflater.inflate(android.R.layout.simple_list_item_1, llMoodTipsCard, false) as TextView
                         tv.text = "\u2022  $tip"
                         tv.setTextColor(resources.getColor(R.color.black))
@@ -278,7 +326,7 @@ class FullFaceReportActivity : AppCompatActivity() {
             }
         }.start()
 
-        // Save report (existing behavior)
+        // Save report (updated methodology)
         btnSave.setOnClickListener {
             val uid = auth.currentUser?.uid
             if (uid == null) {
@@ -288,15 +336,41 @@ class FullFaceReportActivity : AppCompatActivity() {
             btnSave.isEnabled = false; btnSave.text = "Saving..."
             val summary = "Skin: ${tvSkinLabel.text}\nEye: ${tvEyeLabel.text}\nMood: ${tvMoodLabel.text}"
             val topLabel = tvSkinLabel.text.toString()
-            uploadImagesAndSaveReport(uid, previewUriStr, "fullface", summary, topLabel) { success ->
+            uploadImagesAndSaveReport(uid, previewUriStr, "general", summary, topLabel,
+                eyeSummary = lastEyeSummary,
+                eyeAccuracy = lastEyeAccuracy,
+                eyeRecommendations = lastEyeRecommendations,
+                eyeLeftUrl = lastEyeLeftUrl,
+                eyeRightUrl = lastEyeRightUrl,
+                skinSummary = lastSkinSummary,
+                skinAccuracy = lastSkinAccuracy,
+                skinRecommendations = lastSkinRecommendations,
+                moodSummary = lastMoodSummary,
+                moodAccuracy = lastMoodAccuracy,
+                moodRecommendations = lastMoodRecommendations
+            ) { success ->
                 runOnUiThread {
                     btnSave.isEnabled = true; btnSave.text = "Save Report"
                     if (success) {
                         Toast.makeText(this, "Report saved", Toast.LENGTH_SHORT).show()
-                        val i = Intent(this, MainActivity::class.java)
-                        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        i.putExtra("open_tab", "home")
-                        startActivity(i); finish()
+                        // fetch updated user doc then navigate so MainActivity receives updated_user_map
+                        val userDoc = db.collection("users").document(uid)
+                        userDoc.get().addOnSuccessListener { snap ->
+                            val userMap = snap.data ?: emptyMap<String, Any>()
+                            val i = Intent(this, MainActivity::class.java)
+                            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            i.putExtra("open_tab", "home")
+                            val serializableMap = HashMap(userMap)
+                            i.putExtra("updated_user_map", serializableMap)
+                            startActivity(i)
+                            finish()
+                        }.addOnFailureListener {
+                            val i = Intent(this, MainActivity::class.java)
+                            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            i.putExtra("open_tab", "home")
+                            startActivity(i)
+                            finish()
+                        }
                     } else {
                         Toast.makeText(this, "Failed to save report", Toast.LENGTH_SHORT).show()
                     }
@@ -330,12 +404,34 @@ class FullFaceReportActivity : AppCompatActivity() {
         } catch (e: Exception) { emptyList() }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun saveBitmapToCache(bmp: Bitmap, name: String): Uri? {
+        return try {
+            val f = kotlin.io.path.createTempFile(prefix = name, suffix = ".jpg").toFile()
+            FileOutputStream(f).use { out -> bmp.compress(Bitmap.CompressFormat.JPEG, 90, out) }
+            Uri.fromFile(f)
+        } catch (e: Exception) {
+            e.printStackTrace(); null
+        }
+    }
+
     private fun uploadImagesAndSaveReport(
         uid: String,
         previewUriStr: String?,
         type: String,
         summary: String,
         topLabel: String,
+        eyeSummary: String,
+        eyeAccuracy: Double,
+        eyeRecommendations: List<String>,
+        eyeLeftUrl: String?,
+        eyeRightUrl: String?,
+        skinSummary: String,
+        skinAccuracy: Double,
+        skinRecommendations: List<String>,
+        moodSummary: String,
+        moodAccuracy: Double,
+        moodRecommendations: List<String>,
         onComplete: (Boolean) -> Unit
     ) {
         val previewUri = previewUriStr?.let { Uri.parse(it) }
@@ -360,26 +456,91 @@ class FullFaceReportActivity : AppCompatActivity() {
             }
         }
 
+        // upload preview first (we don't require uploading local eye crops to storage; we save their cache URIs if available)
         uploadOne(previewUri, "preview_${System.currentTimeMillis()}") { pUrl ->
             uploaded["preview"] = pUrl ?: ""
-            val report = hashMapOf<String, Any>(
-                "type" to type,
-                "summary" to summary,
-                "topLabel" to topLabel,
-                "confidence" to 0.0,
-                "previewUrl" to (uploaded["preview"] ?: ""),
-                "createdAt" to System.currentTimeMillis()
+
+            // Create scan payloads
+            val eyeScan = hashMapOf<String, Any?>(
+                "summary" to eyeSummary,
+                "accuracy" to eyeAccuracy,
+                "recommendations" to eyeRecommendations,
+                "leftPreview" to (eyeLeftUrl ?: null),
+                "rightPreview" to (eyeRightUrl ?: null)
             )
-            val userDoc = db.collection("users").document(uid)
-            userDoc.update("reports", FieldValue.arrayUnion(report as Any))
-                .addOnSuccessListener { onComplete(true) }
-                .addOnFailureListener {
-                    val payload = hashMapOf("reports" to listOf(report))
-                    userDoc.set(payload, SetOptions.merge())
-                        .addOnSuccessListener { onComplete(true) }
-                        .addOnFailureListener { e -> e.printStackTrace(); onComplete(false) }
-                }
+
+            val skinScan = hashMapOf<String, Any?>(
+                "summary" to skinSummary,
+                "accuracy" to skinAccuracy,
+                "recommendations" to skinRecommendations
+            )
+
+            val moodScan = hashMapOf<String, Any?>(
+                "summary" to moodSummary,
+                "accuracy" to moodAccuracy,
+                "recommendations" to moodRecommendations
+            )
+
+            // create report doc in top-level "reports" collection
+            try {
+                val reportsCol = db.collection("reports")
+                val newDocRef = reportsCol.document()
+                val reportId = newDocRef.id
+
+                val reportPayload = hashMapOf<String, Any?>(
+                    "reportId" to reportId,
+                    "userId" to uid,
+                    "type" to type, // "general"
+                    "summary" to summary,
+                    "imageUrl" to (uploaded["preview"] ?: ""),
+                    "imageWidth" to null,
+                    "imageHeight" to null,
+                    "accuracy" to ((eyeAccuracy + skinAccuracy + moodAccuracy) / 3.0),
+                    "recommendations" to (eyeRecommendations + skinRecommendations + moodRecommendations),
+                    "eye_scan" to eyeScan,
+                    "skin_scan" to skinScan,
+                    "mood_scan" to moodScan,
+                    "tags" to listOf<String>(),
+                    "source" to "camera",
+                    "meta" to hashMapOf("orientation" to "unknown"),
+                    "createdAt" to Timestamp.now()
+                )
+
+                newDocRef.set(reportPayload)
+                    .addOnSuccessListener {
+                        // push only the reportId into user's reports array with retry
+                        val userDoc = db.collection("users").document(uid)
+                        updateUserReportsWithRetry(userDoc, reportId, onComplete)
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e(TAG, "Failed to create report doc", e)
+                        onComplete(false)
+                    }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onComplete(false)
+            }
         }
+    }
+
+    private fun updateUserReportsWithRetry(userDocRef: com.google.firebase.firestore.DocumentReference, reportId: String, onComplete: (Boolean) -> Unit, attempt: Int = 0) {
+        userDocRef.update("reports", FieldValue.arrayUnion(reportId))
+            .addOnSuccessListener {
+                onComplete(true)
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "update reports failed (attempt=$attempt): ${e.message}", e)
+                if (attempt < 1) {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        updateUserReportsWithRetry(userDocRef, reportId, onComplete, attempt + 1)
+                    }, 800)
+                } else {
+                    val payload = hashMapOf("reports" to listOf(reportId))
+                    userDocRef.set(payload, SetOptions.merge())
+                        .addOnSuccessListener { onComplete(true) }
+                        .addOnFailureListener { ex -> ex.printStackTrace(); onComplete(false) }
+                }
+            }
     }
 
     // adapter (same as before)

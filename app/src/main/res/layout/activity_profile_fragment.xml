@@ -47,8 +47,7 @@
                     android:id="@+id/holderAvatar"
                     android:layout_width="100dp"
                     android:layout_height="100dp"
-                    android:layout_marginTop="20dp"
-                    >
+                    android:layout_marginTop="20dp">
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/cardAvatar"
@@ -160,6 +159,24 @@
                     android:textSize="16sp"/>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <!-- Location toggle button (matches app button style) -->
+<!--        <com.google.android.material.button.MaterialButton-->
+<!--            android:id="@+id/btnToggleLocation"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="56dp"-->
+<!--            android:layout_marginStart="16dp"-->
+<!--            android:layout_marginEnd="16dp"-->
+<!--            android:layout_marginTop="8dp"-->
+<!--            android:layout_marginBottom="12dp"-->
+<!--            android:text="Enable Location"-->
+<!--            android:textAllCaps="false"-->
+<!--            android:textStyle="bold"-->
+<!--            app:cornerRadius="12dp"-->
+<!--            app:backgroundTint="@color/white"-->
+<!--            app:strokeColor="@color/teal_bg"-->
+<!--            app:strokeWidth="2dp"-->
+<!--            android:textColor="@color/teal_bg" />-->
 
         <LinearLayout
             android:id="@+id/listOptions"

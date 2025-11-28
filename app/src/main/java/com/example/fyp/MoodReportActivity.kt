@@ -6,6 +6,9 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageButton
@@ -18,13 +21,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
@@ -39,6 +43,7 @@ class MoodReportActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_IMAGE_URI = "extra_image_uri"
         const val MODEL_NAME = "mood_detection_model.tflite"
+        private const val TAG = "MoodReportActivity"
     }
 
     private lateinit var ivPreview: ImageView
@@ -71,6 +76,7 @@ class MoodReportActivity : AppCompatActivity() {
     private var previewUriStr: String? = null
     private var lastTopLabel: String = "unknown"
     private var lastConfidence: Double = 0.0
+    private var lastRecommendations: List<String> = emptyList()
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -141,6 +147,11 @@ class MoodReportActivity : AppCompatActivity() {
                 val (topLabel, conf) = MLUtils.runMoodOnBitmapForTopBlocking(bmp, interpreter, inputW, inputH, inputChannels, inputDataType)
                 lastTopLabel = topLabel
                 lastConfidence = conf
+                // compute recommendations now so we can save them later
+                val key = topLabel.replace("\\s".toRegex(), "").lowercase()
+                val rec = RecommendationProvider.getMoodRecommendation(key)
+                lastRecommendations = rec?.tips ?: emptyList()
+
                 runOnUiThread {
                     // dismiss loader
                     dlg.dismiss()
@@ -151,8 +162,6 @@ class MoodReportActivity : AppCompatActivity() {
                     tvAccuracyLabel.text = "Accuracy Level: ${confFmt}%"
 
                     // load recommendation and populate tips
-                    val key = topLabel.replace("\\s".toRegex(), "").lowercase()
-                    val rec = RecommendationProvider.getMoodRecommendation(key)
                     if (rec != null) {
                         tvRecSummary.text = rec.summary
                         llTips.removeAllViews()
@@ -193,17 +202,31 @@ class MoodReportActivity : AppCompatActivity() {
             val summary = tvSummaryText.text.toString()
             val topLabel = lastTopLabel
             val confidence = lastConfidence
-            uploadImagesAndSaveReport(uid, previewUriStr, "mood", summary, topLabel, confidence) { success ->
+            val recsToSave = lastRecommendations
+            uploadImagesAndSaveReport(uid, previewUriStr, "mood", summary, topLabel, confidence, recsToSave) { success ->
                 runOnUiThread {
                     btnSave.isEnabled = true
                     btnSave.text = "Save Report"
                     if (success) {
                         Toast.makeText(this, "Report saved", Toast.LENGTH_SHORT).show()
-                        val i = Intent(this, MainActivity::class.java)
-                        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        i.putExtra("open_tab", "home")
-                        startActivity(i)
-                        finish()
+                        // fetch updated user doc then navigate (so MainActivity receives updated_user_map)
+                        val userDoc = db.collection("users").document(uid)
+                        userDoc.get().addOnSuccessListener { snap ->
+                            val userMap = snap.data ?: emptyMap<String, Any>()
+                            val i = Intent(this, MainActivity::class.java)
+                            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            i.putExtra("open_tab", "home")
+                            val serializableMap = HashMap(userMap)
+                            i.putExtra("updated_user_map", serializableMap)
+                            startActivity(i)
+                            finish()
+                        }.addOnFailureListener {
+                            val i = Intent(this, MainActivity::class.java)
+                            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            i.putExtra("open_tab", "home")
+                            startActivity(i)
+                            finish()
+                        }
                     } else {
                         Toast.makeText(this, "Failed to save report", Toast.LENGTH_SHORT).show()
                     }
@@ -244,6 +267,7 @@ class MoodReportActivity : AppCompatActivity() {
         summary: String,
         topLabel: String,
         confidence: Double,
+        recommendations: List<String>,
         onComplete: (Boolean) -> Unit
     ) {
         val previewUri = previewUriStr?.let { Uri.parse(it) }
@@ -268,25 +292,78 @@ class MoodReportActivity : AppCompatActivity() {
             }
         }
 
+        // Upload preview -> create top-level report doc -> link to user.reports (with retry)
         uploadOne(previewUri, "preview_${System.currentTimeMillis()}") { pUrl ->
             uploaded["preview"] = pUrl ?: ""
-            val report = hashMapOf<String, Any>(
-                "type" to type,
+
+            // Build mood_scan payload (ScanResult-like)
+            val moodScan = hashMapOf<String, Any>(
                 "summary" to summary,
+                "accuracy" to confidence,
                 "topLabel" to topLabel,
-                "confidence" to confidence,
                 "previewUrl" to (uploaded["preview"] ?: ""),
-                "createdAt" to System.currentTimeMillis()
+                "recommendations" to recommendations
             )
-            val userDoc = db.collection("users").document(uid)
-            userDoc.update("reports", FieldValue.arrayUnion(report as Any))
-                .addOnSuccessListener { onComplete(true) }
-                .addOnFailureListener {
-                    val payload = hashMapOf("reports" to listOf(report))
-                    userDoc.set(payload, com.google.firebase.firestore.SetOptions.merge())
-                        .addOnSuccessListener { onComplete(true) }
-                        .addOnFailureListener { e -> e.printStackTrace(); onComplete(false) }
-                }
+
+            // create report doc in top-level "reports" collection
+            try {
+                val reportsCol = db.collection("reports")
+                val newDocRef = reportsCol.document()
+                val reportId = newDocRef.id
+
+                val reportPayload = hashMapOf<String, Any?>(
+                    "reportId" to reportId,
+                    "userId" to uid,
+                    "type" to type,
+                    "summary" to summary,
+                    "imageUrl" to (uploaded["preview"] ?: ""),
+                    "imageWidth" to null,
+                    "imageHeight" to null,
+                    "accuracy" to confidence,
+                    "recommendations" to recommendations,
+                    "eye_scan" to null,
+                    "skin_scan" to null,
+                    "mood_scan" to moodScan,
+                    "tags" to listOf<String>(),
+                    "source" to "camera",
+                    "meta" to hashMapOf("orientation" to "unknown"),
+                    "createdAt" to Timestamp.now()
+                )
+
+                newDocRef.set(reportPayload)
+                    .addOnSuccessListener {
+                        // push only the reportId into user's reports array with retry
+                        val userDoc = db.collection("users").document(uid)
+                        updateUserReportsWithRetry(userDoc, reportId, onComplete)
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e(TAG, "Failed to create report doc", e)
+                        onComplete(false)
+                    }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onComplete(false)
+            }
         }
+    }
+
+    private fun updateUserReportsWithRetry(userDocRef: com.google.firebase.firestore.DocumentReference, reportId: String, onComplete: (Boolean) -> Unit, attempt: Int = 0) {
+        userDocRef.update("reports", FieldValue.arrayUnion(reportId))
+            .addOnSuccessListener {
+                onComplete(true)
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "update reports failed (attempt=$attempt): ${e.message}", e)
+                if (attempt < 1) {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        updateUserReportsWithRetry(userDocRef, reportId, onComplete, attempt + 1)
+                    }, 800)
+                } else {
+                    val payload = hashMapOf("reports" to listOf(reportId))
+                    userDocRef.set(payload, SetOptions.merge())
+                        .addOnSuccessListener { onComplete(true) }
+                        .addOnFailureListener { ex -> ex.printStackTrace(); onComplete(false) }
+                }
+            }
     }
 }

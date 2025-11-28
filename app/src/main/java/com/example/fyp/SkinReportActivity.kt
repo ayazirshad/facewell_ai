@@ -7,6 +7,9 @@ import android.graphics.*
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -21,6 +24,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -29,13 +33,10 @@ import com.google.firebase.storage.FirebaseStorage
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import java.io.BufferedReader
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.MappedByteBuffer
-import java.nio.channels.FileChannel
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -84,6 +85,7 @@ class SkinReportActivity : AppCompatActivity() {
 
     private var lastFinalLabel: String = "unknown"
     private var lastFinalProb: Float = 0f
+    private var lastRecommendations: List<String> = emptyList()
 
     data class PatchResult(val bmp: Bitmap, val label: String, val confidence: Double)
 
@@ -210,12 +212,16 @@ class SkinReportActivity : AppCompatActivity() {
                     }
                 }
 
+                // compute recommendations (save them for the report save)
+                val recKey = finalLabel.replace("\\s".toRegex(), "").lowercase()
+                val rec = RecommendationProvider.getSkinRecommendation(recKey)
+                val recTips = rec?.tips ?: emptyList()
+                lastRecommendations = recTips
+
                 runOnUiThread {
                     tvSummaryText.text = displaySummary
                     tvAccuracyLabel.text = "Accuracy Level: ${String.format("%.1f", finalProb * 100.0)}%"
                     rvPatches.adapter?.notifyDataSetChanged()
-                    val recKey = finalLabel.replace("\\s".toRegex(), "").lowercase()
-                    val rec = RecommendationProvider.getSkinRecommendation(recKey)
                     tvRecSummary.text = rec?.summary ?: "Follow general skin care steps."
                     llTips.removeAllViews()
                     rec?.tips?.forEach { tip ->
@@ -251,18 +257,32 @@ class SkinReportActivity : AppCompatActivity() {
             } else {
                 if (patchResults.isNotEmpty()) patchResults.maxByOrNull { it.confidence }?.label ?: "unknown" else "unknown"
             }
+            val recsToSave = lastRecommendations // computed earlier
             uploadImagesAndSaveReport(uid, previewUriStr, faceHeatmapUriStr, type = "skin",
-                summary = summary, topLabel = topLabel) { success ->
+                summary = summary, topLabel = topLabel, confidence = lastFinalProb.toDouble(), recommendations = recsToSave) { success ->
                 runOnUiThread {
                     btnSave.isEnabled = true
                     btnSave.text = "Save Report"
                     if (success) {
                         Toast.makeText(this, "Report saved", Toast.LENGTH_SHORT).show()
-                        val i = Intent(this, MainActivity::class.java)
-                        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        i.putExtra("open_tab", "home")
-                        startActivity(i)
-                        finish()
+                        // fetch updated user doc and navigate like Eye flow (so MainActivity receives updated_user_map)
+                        val userDoc = db.collection("users").document(uid)
+                        userDoc.get().addOnSuccessListener { snap ->
+                            val userMap = snap.data ?: emptyMap<String, Any>()
+                            val i = Intent(this, MainActivity::class.java)
+                            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            i.putExtra("open_tab", "home")
+                            val serializableMap = HashMap(userMap)
+                            i.putExtra("updated_user_map", serializableMap)
+                            startActivity(i)
+                            finish()
+                        }.addOnFailureListener {
+                            val i = Intent(this, MainActivity::class.java)
+                            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            i.putExtra("open_tab", "home")
+                            startActivity(i)
+                            finish()
+                        }
                     } else {
                         Toast.makeText(this, "Failed to save report", Toast.LENGTH_SHORT).show()
                     }
@@ -553,6 +573,8 @@ class SkinReportActivity : AppCompatActivity() {
         type: String,
         summary: String,
         topLabel: String,
+        confidence: Double,
+        recommendations: List<String>,
         onComplete: (Boolean) -> Unit
     ) {
         val previewUri = previewUriStr?.let { Uri.parse(it) }
@@ -579,29 +601,82 @@ class SkinReportActivity : AppCompatActivity() {
             }
         }
 
+        // Upload preview -> heat -> create top-level report doc -> link to user.reports (with retry)
         uploadOne(previewUri, "preview_${System.currentTimeMillis()}") { pUrl ->
             uploaded["preview"] = pUrl ?: ""
             uploadOne(heatUri, "heat_${System.currentTimeMillis()}") { hUrl ->
                 uploaded["heat"] = hUrl ?: ""
-                val report = hashMapOf<String, Any>(
-                    "type" to type,
+
+                // Build skin_scan payload (ScanResult-like) and include recommendations
+                val skinScan = hashMapOf<String, Any>(
                     "summary" to summary,
+                    "accuracy" to confidence,
                     "topLabel" to topLabel,
-                    "confidence" to 0.0,
                     "previewUrl" to (uploaded["preview"] ?: ""),
                     "heatUrl" to (uploaded["heat"] ?: ""),
-                    "createdAt" to System.currentTimeMillis()
+                    "recommendations" to recommendations
                 )
-                val userDoc = db.collection("users").document(uid)
-                userDoc.update("reports", FieldValue.arrayUnion(report as Any))
-                    .addOnSuccessListener { onComplete(true) }
-                    .addOnFailureListener {
-                        val payload = hashMapOf("reports" to listOf(report))
-                        userDoc.set(payload, SetOptions.merge())
-                            .addOnSuccessListener { onComplete(true) }
-                            .addOnFailureListener { e -> e.printStackTrace(); onComplete(false) }
-                    }
+
+                // create report doc in top-level "reports" collection
+                try {
+                    val reportsCol = db.collection("reports")
+                    val newDocRef = reportsCol.document()
+                    val reportId = newDocRef.id
+
+                    val reportPayload = hashMapOf<String, Any?>(
+                        "reportId" to reportId,
+                        "userId" to uid,
+                        "type" to type,
+                        "summary" to summary,
+                        "imageUrl" to (uploaded["preview"] ?: ""),
+                        "imageWidth" to null,
+                        "imageHeight" to null,
+                        "accuracy" to confidence,
+                        "recommendations" to recommendations,
+                        "eye_scan" to null,
+                        "skin_scan" to skinScan,
+                        "mood_scan" to null,
+                        "tags" to listOf<String>(),
+                        "source" to "camera",
+                        "meta" to hashMapOf("orientation" to "unknown"),
+                        "createdAt" to Timestamp.now()
+                    )
+
+                    newDocRef.set(reportPayload)
+                        .addOnSuccessListener {
+                            // push only the reportId into user's reports array with retry
+                            val userDoc = db.collection("users").document(uid)
+                            updateUserReportsWithRetry(userDoc, reportId, onComplete)
+                        }
+                        .addOnFailureListener { e ->
+                            Log.e(TAG, "Failed to create report doc", e)
+                            onComplete(false)
+                        }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    onComplete(false)
+                }
             }
         }
+    }
+
+    private fun updateUserReportsWithRetry(userDocRef: com.google.firebase.firestore.DocumentReference, reportId: String, onComplete: (Boolean) -> Unit, attempt: Int = 0) {
+        userDocRef.update("reports", FieldValue.arrayUnion(reportId))
+            .addOnSuccessListener {
+                onComplete(true)
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "update reports failed (attempt=$attempt): ${e.message}", e)
+                if (attempt < 1) {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        updateUserReportsWithRetry(userDocRef, reportId, onComplete, attempt + 1)
+                    }, 800)
+                } else {
+                    val payload = hashMapOf("reports" to listOf(reportId))
+                    userDocRef.set(payload, SetOptions.merge())
+                        .addOnSuccessListener { onComplete(true) }
+                        .addOnFailureListener { ex -> ex.printStackTrace(); onComplete(false) }
+                }
+            }
     }
 }

@@ -5,12 +5,15 @@ import android.app.Activity
 import android.content.Intent
 import android.location.Location
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.fyp.weather.WeatherService
@@ -54,11 +57,27 @@ class HomeFragment : Fragment(R.layout.activity_home_fragment) {
             val fine = perms[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
             val coarse = perms[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
             Log.d(TAG, "permission result fine=$fine coarse=$coarse")
+
             if (fine || coarse) {
+                // Granted now (covers "Allow while using" and "Allow only this time")
                 fetchAndSaveLocationThenLoadWeather()
-            } else {
+                return@registerForActivityResult
+            }
+
+            // Not granted. Detect if user permanently denied (Don't ask again) via shouldShowRequestPermissionRationale
+            val shouldShow = ActivityCompat.shouldShowRequestPermissionRationale(
+                requireActivity(),
+                Manifest.permission.ACCESS_FINE_LOCATION
+            )
+            if (shouldShow) {
+                // User denied but we can ask again later — show placeholder and friendly toast
                 showWeatherPlaceholder("Location denied")
-                Toast.makeText(requireContext(), "Location not granted — weather will show placeholder.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Location denied — weather disabled", Toast.LENGTH_SHORT).show()
+            } else {
+                // If shouldShow is false and permission not granted -> either first-time denied or permanently denied.
+                // Treat this as "permanently denied" case (safe fallback): show UI so user can enable in settings / profile.
+                showWeatherPlaceholder("Location denied")
+                showLocationSettingsDialog()
             }
         }
 
@@ -140,14 +159,14 @@ class HomeFragment : Fragment(R.layout.activity_home_fragment) {
                         Log.d(TAG, "found saved location: $lat, $lng")
                         loadWeatherUsingCoords(lat, lng)
                     } else {
-                        Log.d(TAG, "malformed location -> requesting fresh")
+                        Log.d(TAG, "Location malformed-> requesting fresh")
                         ensureLocationSavedForUser()
                     }
                     done?.invoke()
                 }
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "fetch user failed", e)
+                Log.e(TAG, "User fetching failed", e)
                 setGreeting("User")
                 showWeatherPlaceholder("Error loading user")
                 done?.invoke()
@@ -194,20 +213,42 @@ class HomeFragment : Fragment(R.layout.activity_home_fragment) {
     private fun ensureLocationSavedForUser() {
         if (!NetworkUtils.isOnline(requireContext())) {
             showWeatherPlaceholder("Offline")
-            Toast.makeText(requireContext(), "You appear offline — weather may be stale.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "You appear offline, weather may be stale.", Toast.LENGTH_SHORT).show()
             return
         }
 
         if (LocationHelper.hasLocationPermission(requireContext())) {
+            // Has permission right now (covers both "while using" and "allow only this time")
             fetchAndSaveLocationThenLoadWeather()
             return
         }
 
-        val permissions = arrayOf(
-            Manifest.permission.ACCESS_COARSE_LOCATION,
+        // No permission right now. Before launching, check if we should show rationale.
+        val shouldShow = ActivityCompat.shouldShowRequestPermissionRationale(
+            requireActivity(),
             Manifest.permission.ACCESS_FINE_LOCATION
         )
-        permissionLauncher.launch(permissions)
+        if (shouldShow) {
+            // Explain briefly then request
+            AlertDialog.Builder(requireContext())
+                .setTitle("Location required")
+                .setMessage("We use your location to show local weather. Please allow location access.")
+                .setPositiveButton("Allow") { _, _ ->
+                    permissionLauncher.launch(arrayOf(
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    ))
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        } else {
+            // Either first-time request or permanently denied.
+            // We'll request permissions once — if this is permanently denied, the permissionLauncher code will show settings dialog.
+            permissionLauncher.launch(arrayOf(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ))
+        }
     }
 
     private fun fetchAndSaveLocationThenLoadWeather() {
@@ -314,5 +355,20 @@ class HomeFragment : Fragment(R.layout.activity_home_fragment) {
             in 17..20 -> "Evening"
             else -> "Night"
         }
+    }
+
+    private fun showLocationSettingsDialog() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Location permission required")
+            .setMessage("Location permission is disabled. To enable weather and clinic features, open app settings and allow location.")
+            .setPositiveButton("Open Settings") { _, _ ->
+                // Open app settings; user can enable location permission or go to Profile later as you planned
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = android.net.Uri.fromParts("package", requireContext().packageName, null)
+                }
+                startActivity(intent)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 }

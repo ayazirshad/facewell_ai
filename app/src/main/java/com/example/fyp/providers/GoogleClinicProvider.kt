@@ -41,6 +41,8 @@ class GoogleClinicProvider(private val context: Context) : ClinicProvider {
             ClinicCategory.EYE -> "ophthalmologist OR eye clinic OR optometrist"
             ClinicCategory.SKIN -> "dermatologist OR skin clinic OR dermatology"
             ClinicCategory.MOOD -> "psychiatrist OR psychologist OR mental health clinic"
+            else -> "clinic OR hospital OR doctor OR health OR medical"
+
         }
 
         try {

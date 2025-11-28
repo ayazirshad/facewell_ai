@@ -84,9 +84,6 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    // NOTE: intentionally not routing in onStart.
-    // SplashActivity handles auto-routing upon app start to avoid showing login momentarily.
-
     private fun bindViews() {
         tilEmail = findViewById(R.id.tilEmail)
         tilPassword = findViewById(R.id.tilPassword)
@@ -168,10 +165,14 @@ class LoginActivity : AppCompatActivity() {
 
     private fun startGoogleLogin() {
         showLoading(true)
+        // To force account chooser we sign out only at Google client level.
+        // DO NOT sign out Firebase here (removing auth.signOut() prevents random global logouts).
         googleClient.signOut().addOnCompleteListener {
-            googleClient.revokeAccess().addOnCompleteListener {
-                googleLauncher.launch(googleClient.signInIntent)
-            }
+            // launch chooser
+            googleLauncher.launch(googleClient.signInIntent)
+        }.addOnFailureListener {
+            // still launch sign-in intent even if signOut fails
+            googleLauncher.launch(googleClient.signInIntent)
         }
     }
 
@@ -187,28 +188,31 @@ class LoginActivity : AppCompatActivity() {
                         return@addOnCompleteListener
                     }
 
+                    // After Firebase sign-in, look for user's document
                     db.collection("users").document(uid)
                         .get()
                         .addOnSuccessListener { doc ->
                             if (doc.exists()) {
                                 goNextByStage()
                             } else {
-                                try { auth.signOut() } catch (e: Exception) {}
+                                // User not found in Firestore — sign out Google client and notify user.
                                 googleClient.signOut().addOnCompleteListener {
-                                    googleClient.revokeAccess().addOnCompleteListener {
-                                        Toast.makeText(this, "User not found. Please sign up first.", Toast.LENGTH_LONG).show()
-                                        showLoading(false)
-                                    }
+                                    Toast.makeText(this, "User not found. Please sign up first.", Toast.LENGTH_LONG).show()
+                                    showLoading(false)
+                                }.addOnFailureListener {
+                                    Toast.makeText(this, "User not found. Please sign up first.", Toast.LENGTH_LONG).show()
+                                    showLoading(false)
                                 }
                             }
                         }
                         .addOnFailureListener {
-                            try { auth.signOut() } catch (e: Exception) {}
+                            // DB read error — sign out Google client (do not sign out Firebase) and inform user
                             googleClient.signOut().addOnCompleteListener {
-                                googleClient.revokeAccess().addOnCompleteListener {
-                                    Toast.makeText(this, "Login error. Try again.", Toast.LENGTH_LONG).show()
-                                    showLoading(false)
-                                }
+                                Toast.makeText(this, "Login error. Try again.", Toast.LENGTH_LONG).show()
+                                showLoading(false)
+                            }.addOnFailureListener {
+                                Toast.makeText(this, "Login error. Try again.", Toast.LENGTH_LONG).show()
+                                showLoading(false)
                             }
                         }
                 } else {

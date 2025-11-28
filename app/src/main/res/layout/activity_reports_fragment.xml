@@ -27,7 +27,8 @@
             android:text="Eye"
             android:textAllCaps="false"
             app:cornerRadius="20dp"
-            app:strokeWidth="0dp"/>
+            app:strokeWidth="0dp"
+            android:gravity="center"/>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSkin"
@@ -39,7 +40,8 @@
             android:text="Skin"
             android:textAllCaps="false"
             app:cornerRadius="20dp"
-            app:strokeWidth="0dp"/>
+            app:strokeWidth="0dp"
+            android:gravity="center"/>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnMood"
@@ -51,8 +53,10 @@
             android:text="Mood"
             android:textAllCaps="false"
             app:cornerRadius="20dp"
-            app:strokeWidth="0dp"/>
+            app:strokeWidth="0dp"
+            android:gravity="center"/>
 
+        <!-- Full Face uses two lines so it won't get truncated on narrow screens -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnGeneral"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
@@ -60,8 +64,10 @@
             android:layout_weight="1"
             android:layout_height="40dp"
             android:layout_marginStart="8dp"
-            android:text="All"
+            android:text="Full\nFace"
             android:textAllCaps="false"
+            android:minLines="2"
+            android:gravity="center"
             app:cornerRadius="20dp"
             app:strokeWidth="0dp"/>
     </LinearLayout>

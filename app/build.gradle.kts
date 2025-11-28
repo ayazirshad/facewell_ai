@@ -44,6 +44,7 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.swiperefreshlayout)
+    implementation(libs.firebase.appcheck.debug)
 
     // ===== REMOVED: LiteRT (was causing duplicate TFLite classes) =====
     // implementation(libs.litert.support.api)
